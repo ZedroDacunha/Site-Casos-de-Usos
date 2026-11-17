@@ -339,11 +339,34 @@ function posMundo(clientX,clientY){
   const w=vb.width||r.width, h=vb.height||r.height;
   return {x:(clientX-r.left)/r.width*w+vb.x, y:(clientY-r.top)/r.height*h+vb.y};
 }
+/* geometria do ator (bonequinho): coordenadas relativas ao grupo do bloco.
+   o retângulo invisível que envolve a figura vai de x0 a x1 (pontas dos braços)
+   e de y0 a y1 (topo da cabeça até a base das pernas) */
+function geomAtor(w,h){
+  const headR=Math.min(15,(h-40)/4);
+  const headY=headR+9;
+  const bodyTop=headY+headR+1;
+  const bodyBot=h-32;
+  const armY=bodyTop+(bodyBot-bodyTop)*0.45;
+  const armDx=Math.min(26,w/2-10);
+  const legBot=h-4;
+  return {headR,headY,bodyTop,bodyBot,armY,armDx,legBot,x0:w/2-armDx,y0:headY-headR,x1:w/2+armDx,y1:legBot};
+}
 function ancoras(no){
   const {w,h}=dimsPadrao(no.tipo);
   const cx=no.x+w/2, cy=no.y+h/2;
-  // todas as âncoras ficam alinhadas às bordas do retângulo invisível que envolve
-  // o bloco (para o ator, o retângulo envolve o bonequinho) — centro de cada lado
+  // ator: âncoras alinhadas às bordas do retângulo invisível que abraça a figura
+  // (topo da cabeça, pontas dos braços, base das pernas)
+  if(no.tipo==="ator"){
+    const g=geomAtor(w,h);
+    return {
+      topo:{x:cx,y:no.y+g.y0},      // topo da cabeça
+      direita:{x:no.x+g.x1,y:no.y+g.armY}, // ponta do braço direito
+      inferior:{x:cx,y:no.y+g.y1}, // base das pernas
+      esquerda:{x:no.x+g.x0,y:no.y+g.armY} // ponta do braço esquerdo
+    };
+  }
+  // demais blocos: âncoras alinhadas às bordas do box
   return {topo:{x:cx,y:no.y},direita:{x:no.x+w,y:cy},inferior:{x:cx,y:no.y+h},esquerda:{x:no.x,y:cy}};
 }
 function parAncoras(a,b){
@@ -412,13 +435,14 @@ function render(){
   hit.setAttribute("width",w); hit.setAttribute("height",h);
   hit.setAttribute("rx",4);
   g.appendChild(hit);
-  // retângulo invisível ao redor do ator: guia de alinhamento — as âncoras ficam
-  // alinhadas nas suas bordas (não é visível, só define a referência de alinhamento)
+  // retângulo invisível ao redor do ator: envolve a figura (topo da cabeça, pontas
+  // dos braços, base das pernas) — guia de alinhamento das âncoras (não é visível)
   if(no.tipo==="ator"){
+    const geo=geomAtor(w,h);
     const alinha=document.createElementNS("http://www.w3.org/2000/svg","rect");
     alinha.setAttribute("class","alinha-ator");
-    alinha.setAttribute("x",0); alinha.setAttribute("y",0);
-    alinha.setAttribute("width",w); alinha.setAttribute("height",h);
+    alinha.setAttribute("x",geo.x0); alinha.setAttribute("y",geo.y0);
+    alinha.setAttribute("width",geo.x1-geo.x0); alinha.setAttribute("height",geo.y1-geo.y0);
     alinha.setAttribute("rx",4);
     g.appendChild(alinha);
   }
