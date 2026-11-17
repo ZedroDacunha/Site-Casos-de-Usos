@@ -95,12 +95,20 @@ function formaSVG(tipo,h,w){
       return `<ellipse class="forma-pre" cx="${w/2}" cy="${h/2}" rx="${w/2-4}" ry="${h/2-4}"
                     fill="${k}" stroke="${p2}" stroke-width="2"/>`;
     case "ator":
+      // figura humana (bonequinho) desenhada de forma proporcional
       const cx=w/2;
-      return `<circle class="forma-pre" cx="${cx}" cy="20" r="12" fill="none" stroke="${t2}" stroke-width="2.4"/>
-              <line class="forma-pre" x1="${cx}" y1="32" x2="${cx}" y2="${h-30}" stroke="${t2}" stroke-width="2.4"/>
-              <line class="forma-pre" x1="${cx-16}" y1="${h/2+6}" x2="${cx+16}" y2="${h/2+6}" stroke="${t2}" stroke-width="2.4"/>
-              <line class="forma-pre" x1="${cx}" y1="${h/2+8}" x2="${cx-13}" y2="${h-12}" stroke="${t2}" stroke-width="2.4"/>
-              <line class="forma-pre" x1="${cx}" y1="${h/2+8}" x2="${cx+13}" y2="${h-12}" stroke="${t2}" stroke-width="2.4"/>`;
+      const headR=Math.min(15,(h-40)/4);      // raio da cabeça
+      const headY=headR+9;                   // centro da cabeça
+      const bodyTop=headY+headR+1;           // topo do corpo
+      const bodyBot=h-32;                    // base do corpo / topo das pernas
+      const armY=bodyTop+(bodyBot-bodyTop)*0.45; // altura dos braços
+      const armDx=Math.min(26,w/2-10);       // distância horizontal dos braços
+      const legBot=h-4;                      // base das pernas
+      return `<circle class="forma-pre" cx="${cx}" cy="${headY}" r="${headR}" fill="none" stroke="${t2}" stroke-width="2.6"/>
+              <line class="forma-pre" x1="${cx}" y1="${bodyTop}" x2="${cx}" y2="${bodyBot}" stroke="${t2}" stroke-width="2.6"/>
+              <line class="forma-pre" x1="${cx-armDx}" y1="${armY}" x2="${cx+armDx}" y2="${armY}" stroke="${t2}" stroke-width="2.6"/>
+              <line class="forma-pre" x1="${cx}" y1="${bodyBot}" x2="${cx-15}" y2="${legBot}" stroke="${t2}" stroke-width="2.6"/>
+              <line class="forma-pre" x1="${cx}" y1="${bodyBot}" x2="${cx+15}" y2="${legBot}" stroke="${t2}" stroke-width="2.6"/>`;
     case "limite":
       return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="4"
                     fill="${k}" stroke="${t2}" stroke-width="2" stroke-dasharray="8 6" opacity=".85"/>`;
@@ -329,8 +337,20 @@ function posMundo(clientX,clientY){
 function ancoras(no){
   const {w,h}=dimsPadrao(no.tipo);
   const cx=no.x+w/2, cy=no.y+h/2;
+  // ator (bonequinho): âncoras alinhadas à figura, não às bordas do box
+  if(no.tipo==="ator"){
+    const headR=Math.min(15,(h-40)/4), headY=headR+9;
+    const bodyBot=h-32, armY=bodyTop(no,h)+ (bodyBot-bodyTop(no,h))*0.45, armDx=Math.min(26,w/2-10);
+    return {
+      topo:{x:cx,y:no.y+headY-headR},       // topo da cabeça
+      direita:{x:cx+armDx,y:no.y+armY},     // ponta do braço direito
+      inferior:{x:cx,y:no.y+h-4},           // base das pernas
+      esquerda:{x:cx-armDx,y:no.y+armY}     // ponta do braço esquerdo
+    };
+  }
   return {topo:{x:cx,y:no.y},direita:{x:no.x+w,y:cy},inferior:{x:cx,y:no.y+h},esquerda:{x:no.x,y:cy}};
 }
+function bodyTop(no,h){ const headR=Math.min(15,(h-40)/4); return headR+9+headR+1; }
 function parAncoras(a,b){
   const aa=ancoras(a), ba=ancoras(b);
   const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
