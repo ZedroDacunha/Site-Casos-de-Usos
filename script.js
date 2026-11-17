@@ -331,8 +331,13 @@ function aplicarZoomVisual(){
   document.getElementById("zoomContador").textContent=Math.round(estado.zoom*100)+"%";
 }
 function posMundo(clientX,clientY){
-  const pt=svg.createSVGPoint(); pt.setXY(clientX,clientY);
-  return pt.matrixTransform(svg.getScreenCTM().inverse());
+  // conversão de coordenadas de tela para o plano do SVG usando getBoundingClientRect
+  // (API universal, sem depender de getScreenCTM/createSVGPoint, que podem falhar)
+  const r=svg.getBoundingClientRect();
+  if(!r.width||!r.height) return {x:0,y:0};
+  const vb=svg.viewBox.baseVal;
+  const w=vb.width||r.width, h=vb.height||r.height;
+  return {x:(clientX-r.left)/r.width*w+vb.x, y:(clientY-r.top)/r.height*h+vb.y};
 }
 function ancoras(no){
   const {w,h}=dimsPadrao(no.tipo);
@@ -566,6 +571,7 @@ let arrastoReal=false;
 svg.addEventListener("pointerdown",ev=>{
   const grp=ev.target.closest(".no-grp");
   if(!grp) return;
+  ev.preventDefault(); // evita seleção de texto / arrasto nativo do browser
   const d=diagramaAtual(); if(!d) return;
   const no=d.no.find(n=>n.id===grp.getAttribute("data-id"));
   if(!no) return;
@@ -601,6 +607,9 @@ svg.addEventListener("pointermove",ev=>{
 const fimArrasto=()=>{ if(arrastagem){ arrastagem=null; salvarLocal(); } };
 svg.addEventListener("pointerup",fimArrasto);
 svg.addEventListener("pointercancel",fimArrasto);
+// fecha o arrasto também se o ponteiro for solto fora do canvas
+document.addEventListener("pointerup",fimArrasto);
+document.addEventListener("pointercancel",fimArrasto);
 svg.addEventListener("click",ev=>{
   if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
   if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")) return;
