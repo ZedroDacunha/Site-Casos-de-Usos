@@ -398,18 +398,26 @@ function render(){
       });
       g.appendChild(texto);
     }
-    if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
-      const aa=ancoras(no);
-      for(const k of ["topo","direita","inferior","esquerda"]){
-        const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
-        circ.setAttribute("class","ancora");
-        circ.setAttribute("cx",aa[k].x-no.x);
-        circ.setAttribute("cy",aa[k].y-no.y);
-        circ.setAttribute("r",6);
-        g.appendChild(circ);
-      }
+  if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
+    const aa=ancoras(no);
+    for(const k of ["topo","direita","inferior","esquerda"]){
+      const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      circ.setAttribute("class","ancora");
+      circ.setAttribute("cx",aa[k].x-no.x);
+      circ.setAttribute("cy",aa[k].y-no.y);
+      circ.setAttribute("r",6);
+      g.appendChild(circ);
     }
-    g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
+  }
+  // área de clique: cobre todo o box do bloco (transparente) — permite clicar e
+  // arrastar em qualquer ponto do bloco, inclusive em áreas vazias da figura do ator
+  const hit=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  hit.setAttribute("class","hit-no");
+  hit.setAttribute("x",0); hit.setAttribute("y",0);
+  hit.setAttribute("width",w); hit.setAttribute("height",h);
+  hit.setAttribute("rx",4);
+  g.appendChild(hit);
+  g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
     g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoNo(no); };
     camadaNos.appendChild(g);
   }
@@ -520,8 +528,9 @@ function excluirSelecionados(){
 function adicionarBloco(tipo,x,y){
   const d=diagramaAtual();
   if(x===undefined||y===undefined){
-    const wrap=document.getElementById("canvasWrap").getBoundingClientRect();
-    x=wrap.width/2-90; y=wrap.height/2-40;
+    // centro do plano: o viewBox é centrado em (0,0), então adicionar em (0,0)
+    // coloca o bloco no centro visível da tela, não num canto
+    x=0; y=0;
   }
   const dim=dimsPadrao(tipo);
   const no={id:novoId(),tipo,x:Math.round(x-dim.w/2),y:Math.round(y-dim.h/2),texto:tipo==="limite"?"Sistema":""};
@@ -562,8 +571,13 @@ svg.addEventListener("pointerdown",ev=>{
   if(!no) return;
   // arrasto funciona em qualquer ferramenta (selecionar, conectar, seta, texto)
   if(!estado.selecionados.has(no.id)){
-    if(!ev.shiftKey){ estado.selecionados.clear(); estado.setaSelecionada=null; }
-    estado.selecionados.add(no.id); render();
+    // seleciona sem rebuildar o DOM: evita remover o alvo do ponteiro antes do capture
+    if(!ev.shiftKey){
+      estado.selecionados.clear(); estado.setaSelecionada=null;
+      camadaNos.querySelectorAll(".no-grp.selecionado").forEach(el=>el.classList.remove("selecionado"));
+    }
+    estado.selecionados.add(no.id);
+    grp.classList.add("selecionado");
   }
   const p0=posMundo(ev.clientX,ev.clientY);
   const originais=new Map();

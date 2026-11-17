@@ -191,6 +191,8 @@ body{
 .toast.erro{border-left-color:var(--erro)}
 /* ---------- SVG elementos ---------- */
 .no-grp{cursor:move}
+/* área de clique transparente: cobre todo o box do bloco e recebe o ponteiro */
+.hit-no{fill:transparent;pointer-events:all}
 .no-grp.selecionado .forma-pre{stroke:var(--primario);stroke-width:2.6}
 .no-grp:hover .forma-pre{stroke:var(--primario-2)}
 .no-texto{font-family:"Segoe UI",system-ui,sans-serif;fill:var(--texto);user-select:none;pointer-events:none}
