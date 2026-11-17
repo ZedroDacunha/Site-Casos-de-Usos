@@ -342,20 +342,10 @@ function posMundo(clientX,clientY){
 function ancoras(no){
   const {w,h}=dimsPadrao(no.tipo);
   const cx=no.x+w/2, cy=no.y+h/2;
-  // ator (bonequinho): âncoras alinhadas à figura, não às bordas do box
-  if(no.tipo==="ator"){
-    const headR=Math.min(15,(h-40)/4), headY=headR+9;
-    const bodyBot=h-32, armY=bodyTop(no,h)+ (bodyBot-bodyTop(no,h))*0.45, armDx=Math.min(26,w/2-10);
-    return {
-      topo:{x:cx,y:no.y+headY-headR},       // topo da cabeça
-      direita:{x:cx+armDx,y:no.y+armY},     // ponta do braço direito
-      inferior:{x:cx,y:no.y+h-4},           // base das pernas
-      esquerda:{x:cx-armDx,y:no.y+armY}     // ponta do braço esquerdo
-    };
-  }
+  // todas as âncoras ficam alinhadas às bordas do retângulo invisível que envolve
+  // o bloco (para o ator, o retângulo envolve o bonequinho) — centro de cada lado
   return {topo:{x:cx,y:no.y},direita:{x:no.x+w,y:cy},inferior:{x:cx,y:no.y+h},esquerda:{x:no.x,y:cy}};
 }
-function bodyTop(no,h){ const headR=Math.min(15,(h-40)/4); return headR+9+headR+1; }
 function parAncoras(a,b){
   const aa=ancoras(a), ba=ancoras(b);
   const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
@@ -422,6 +412,16 @@ function render(){
   hit.setAttribute("width",w); hit.setAttribute("height",h);
   hit.setAttribute("rx",4);
   g.appendChild(hit);
+  // retângulo invisível ao redor do ator: guia de alinhamento — as âncoras ficam
+  // alinhadas nas suas bordas (não é visível, só define a referência de alinhamento)
+  if(no.tipo==="ator"){
+    const alinha=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    alinha.setAttribute("class","alinha-ator");
+    alinha.setAttribute("x",0); alinha.setAttribute("y",0);
+    alinha.setAttribute("width",w); alinha.setAttribute("height",h);
+    alinha.setAttribute("rx",4);
+    g.appendChild(alinha);
+  }
   g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
     g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoNo(no); };
     camadaNos.appendChild(g);
