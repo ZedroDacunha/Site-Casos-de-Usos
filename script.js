@@ -68,32 +68,33 @@ const RÓTULO_CONEXAO={
   geralizacao:"Generalização (linha vazada)"
 };
 
-/* ---------- Blocos / formas ---------- */
+/* ---------- Blocos / formas ----------
+   OBS: as cores são aplicadas por classe (CSS), não por atributo — atributos SVG
+   não resolvem variáveis CSS (var(--x)). As classes em .forma-* definem fill/stroke.
+*/
 function formaSVG(tipo,h,w){
-  const k="var(--panel)", b="var(--borda-2)", p="var(--primario)",
-        p2="var(--primario-2)", t2="var(--texto-2)";
   switch(tipo){
     case "oval":
-      return `<circle class="forma-pre" cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)/2-2}" fill="${p}"/>
+      return `<circle class="forma-pre forma-oval" cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)/2-2}"/>
               <text class="no-texto" x="${w/2}" y="${h/2+5}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Início</text>`;
     case "alvo":
-      return `<circle class="forma-pre" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-3}" fill="${p}"/>
-              <circle class="forma-pre" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-11}" fill="${k}" stroke="${p}" stroke-width="3"/>
+      return `<circle class="forma-pre forma-alvo-ext" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-3}"/>
+              <circle class="forma-pre forma-alvo-int" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-11}" stroke-width="3"/>
               <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="12" font-weight="700">Fim</text>`;
     case "barra":
-      return `<rect class="forma-pre" x="2" y="4" width="${w-4}" height="${Math.min(18,h-8)}" rx="4" fill="${p}" stroke="${p2}" stroke-width="2"/>
-              <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${t2}">fork / join</text>`;
+      return `<rect class="forma-pre forma-barra" x="2" y="4" width="${w-4}" height="${Math.min(18,h-8)}" rx="4" stroke-width="2"/>
+              <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="11.5" font-weight="700">fork / join</text>`;
     case "decisao":
-      return `<path class="forma-pre" d="M ${w/2},3 L ${w-3},${h/2} L ${w/2},${h-3} L 3,${h/2} Z"
-                    fill="${k}" stroke="${p2}" stroke-width="2.2"/>`;
+      return `<path class="forma-pre forma-decisao" d="M ${w/2},3 L ${w-3},${h/2} L ${w/2},${h-3} L 3,${h/2} Z"
+                    stroke-width="2.2"/>`;
     case "retângulo":
-      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="8" fill="${k}" stroke="${p2}" stroke-width="2"/>`;
+      return `<rect class="forma-pre forma-ret" x="2" y="2" width="${w-4}" height="${h-4}" rx="8" stroke-width="2"/>`;
     case "retângulo-vaz":
-      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="8"
-                    fill="${k}" stroke="${p2}" stroke-width="2" stroke-dasharray="7 5"/>`;
+      return `<rect class="forma-pre forma-ret-vaz" x="2" y="2" width="${w-4}" height="${h-4}" rx="8"
+                    stroke-dasharray="7 5"/>`;
     case "elipse":
-      return `<ellipse class="forma-pre" cx="${w/2}" cy="${h/2}" rx="${w/2-4}" ry="${h/2-4}"
-                    fill="${k}" stroke="${p2}" stroke-width="2"/>`;
+      return `<ellipse class="forma-pre forma-elipse" cx="${w/2}" cy="${h/2}" rx="${w/2-4}" ry="${h/2-4}"
+                    stroke-width="2"/>`;
     case "ator":
       // figura humana (bonequinho) desenhada de forma proporcional
       const cx=w/2;
@@ -104,19 +105,19 @@ function formaSVG(tipo,h,w){
       const armY=bodyTop+(bodyBot-bodyTop)*0.45; // altura dos braços
       const armDx=Math.min(26,w/2-10);       // distância horizontal dos braços
       const legBot=h-4;                      // base das pernas
-      return `<circle class="forma-pre" cx="${cx}" cy="${headY}" r="${headR}" fill="none" stroke="${t2}" stroke-width="2.6"/>
-              <line class="forma-pre" x1="${cx}" y1="${bodyTop}" x2="${cx}" y2="${bodyBot}" stroke="${t2}" stroke-width="2.6"/>
-              <line class="forma-pre" x1="${cx-armDx}" y1="${armY}" x2="${cx+armDx}" y2="${armY}" stroke="${t2}" stroke-width="2.6"/>
-              <line class="forma-pre" x1="${cx}" y1="${bodyBot}" x2="${cx-15}" y2="${legBot}" stroke="${t2}" stroke-width="2.6"/>
-              <line class="forma-pre" x1="${cx}" y1="${bodyBot}" x2="${cx+15}" y2="${legBot}" stroke="${t2}" stroke-width="2.6"/>`;
+      return `<circle class="forma-pre forma-ator" cx="${cx}" cy="${headY}" r="${headR}" stroke-width="2.6"/>
+              <line class="forma-pre forma-ator" x1="${cx}" y1="${bodyTop}" x2="${cx}" y2="${bodyBot}" stroke-width="2.6"/>
+              <line class="forma-pre forma-ator" x1="${cx-armDx}" y1="${armY}" x2="${cx+armDx}" y2="${armY}" stroke-width="2.6"/>
+              <line class="forma-pre forma-ator" x1="${cx}" y1="${bodyBot}" x2="${cx-15}" y2="${legBot}" stroke-width="2.6"/>
+              <line class="forma-pre forma-ator" x1="${cx}" y1="${bodyBot}" x2="${cx+15}" y2="${legBot}" stroke-width="2.6"/>`;
     case "limite":
-      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="4"
-                    fill="${k}" stroke="${t2}" stroke-width="2" stroke-dasharray="8 6" opacity=".85"/>`;
+      return `<rect class="forma-pre forma-limite" x="2" y="2" width="${w-4}" height="${h-4}" rx="4"
+                    stroke-dasharray="8 6" opacity=".85"/>`;
     case "nota":
-      return `<path class="forma-pre" d="M2,4 h${w-18} l14,8 v${h-16} h-${w-4} v-${h-8} z"
-                    fill="${k}" stroke="${t2}" stroke-width="1.8" stroke-linejoin="round"/>`;
+      return `<path class="forma-pre forma-nota" d="M2,4 h${w-18} l14,8 v${h-16} h-${w-4} v-${h-8} z"
+                    stroke-width="1.8" stroke-linejoin="round"/>`;
     default:
-      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="8" fill="${k}" stroke="${b}" stroke-width="2"/>`;
+      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="8" stroke-width="2"/>`;
   }
 }
 function dimsPadrao(tipo){
@@ -135,7 +136,7 @@ function dimsPadrao(tipo){
 }
 
 /* ---------- Utilitários ---------- */
-function novoId(){ return "N"+(estado._idSeq++).toString(36)+Math.random().toString(36).slice(2,5); }
+function novoId(prefixo){ return (prefixo||"N")+(estado._idSeq++).toString(36)+Math.random().toString(36).slice(2,5); }
 function esc(s){
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;").replace(/\n/g,"<tspan x='0' dy='15'>");
@@ -400,7 +401,7 @@ function render(){
     g.innerHTML=formaSVG(no.tipo,w,h);
     let tx=w/2, ty=h/2+5, anchor="middle";
     if(no.tipo==="alvo"||no.tipo==="barra"){tx=w/2;ty=h+18;anchor="middle";}
-    else if(no.tipo==="ator"){tx=w/2;ty=h-8;anchor="middle";}
+    else if(no.tipo==="ator"){tx=w/2;ty=h+16;anchor="middle";} // etiqueta abaixo da figura (não sobre as pernas)
     else if(no.tipo==="limite"){tx=14;ty=26;anchor="start";}
     else if(no.tipo==="nota"){tx=14;ty=30;anchor="start";}
     const texto=document.createElementNS("http://www.w3.org/2000/svg","text");
@@ -683,11 +684,37 @@ function bboxDoCanvas(){
     const dim=dimsPadrao(no.tipo);
     minX=Math.min(minX,no.x); minY=Math.min(minY,no.y);
     maxX=Math.max(maxX,no.x+dim.w); maxY=Math.max(maxY,no.y+dim.h);
-    if(no.tipo==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+26);
+    if(no.tipo==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
+    if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
   }
   if(!isFinite(minX)){ minX=0;minY=0;maxX=800;maxY=600; }
   const PAD=60;
   return {x:minX-PAD,y:minY-PAD,w:maxX-minX+PAD*2,h:maxY-minY+PAD*2};
+}
+/* CSS mínimo injetado no SVG exportado: variáveis do tema atual + classes de
+   forma/texto/conector — o arquivo SVG standalone não carrega o style.css, então
+   os estilos devem vir junto no próprio arquivo para renderizar com cores corretas */
+function cssExport(){
+  const vars=["--primario","--primario-2","--panel","--borda","--borda-2","--texto","--texto-2","--sucesso","--aviso"];
+  let root="";
+  for(const v of vars){
+    const val=getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    if(val) root+=v+":"+val+";";
+  }
+  return root+`
+.forma-pre{stroke:var(--borda-2);stroke-width:2}
+.forma-oval,.forma-alvo-ext,.forma-barra{fill:var(--primario)}
+.forma-alvo-int{fill:var(--panel);stroke:var(--primario)}
+.forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:var(--panel)}
+.forma-ator{fill:none;stroke:var(--texto-2)}
+.no-texto{fill:var(--texto);font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
+.conector{fill:none;stroke:var(--texto-2);stroke-width:1.8}
+.conector-marca{font-size:11.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
+.conector-marca.include{fill:var(--sucesso)}
+.conector-marca.extend{fill:var(--aviso)}
+.seta-marca{fill:var(--texto-2)}
+.seta-marca-sel{fill:var(--primario)}
+`;
 }
 function construirSVGExport(){
   const d=diagramaAtual();
@@ -696,9 +723,13 @@ function construirSVGExport(){
   clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
   clone.querySelector("#gradePlano")?.remove();
   const contNos=clone.querySelector("#camadaNos");
-  if(contNos) contNos.querySelectorAll(".ancora").forEach(n=>n.remove());
+  if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alinha-ator").forEach(n=>n.remove());
   clone.setAttribute("viewBox",`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
   clone.setAttribute("width",bb.w); clone.setAttribute("height",bb.h);
+  // injeta os estilos (variáveis do tema + classes) para o SVG standalone renderizar correto
+  const estilo=document.createElementNS("http://www.w3.org/2000/svg","style");
+  estilo.textContent=cssExport();
+  clone.insertBefore(estilo,clone.firstChild);
   const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
   bg.setAttribute("x",bb.x);bg.setAttribute("y",bb.y);bg.setAttribute("width",bb.w);bg.setAttribute("height",bb.h);
   bg.setAttribute("fill","#ffffff");
