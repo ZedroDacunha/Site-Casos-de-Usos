@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ModelaDiagramas — Editor Visual de Diagramas</title>
+<meta name="description" content="ModelaDiagramas: editor visual para montar manualmente diagramas de atividades, casos de uso e requisitos — blocos arrastáveis, setas de conexão e exportação SVG/PNG.">
+<style>
+:root{
+  --bg:#eef1f6;
+  --bg-2:#f7f9fc;
+  --panel:#ffffff;
+  --panel-2:#f4f6fa;
+  --texto:#1e2430;
+  --texto-2:#5b6675;
+  --borda:#dde3ec;
+  --borda-2:#c7cfdc;
+  --primario:#3559e8;
+  --primario-2:#2747c4;
+  --primario-claro:#e8edfc;
+  --sucesso:#158a5b;
+  --sucesso-claro:#e2f5ec;
+  --erro:#d33a3a;
+  --erro-claro:#fbe7e7;
+  --aviso:#a86a00;
+  --aviso-claro:#fdf1dd;
+  --sombra:0 2px 10px rgba(24,33,61,.10);
+  --sombra-lg:0 10px 30px rgba(24,33,61,.16);
+  --raio:10px;
+}
+html[data-theme="dark"]{
+  --bg:#141821;
+  --bg-2:#181d27;
+  --panel:#1d232e;
+  --panel-2:#232a37;
+  --texto:#e9edf4;
+  --texto-2:#a3adc0;
+  --borda:#313a4a;
+  --borda-2:#3d4859;
+  --primario:#7d93ff;
+  --primario-2:#687fff;
+  --primario-claro:#262f52;
+  --sucesso:#3ec98d;
+  --sucesso-claro:#16322a;
+  --erro:#ff8080;
+  --erro-claro:#3a1f22;
+  --aviso:#f0b544;
+  --aviso-claro:#382c12;
+  --sombra:0 2px 10px rgba(0,0,0,.35);
+  --sombra-lg:0 10px 30px rgba(0,0,0,.5);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--texto);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+/* ---------- Cabeçalho ---------- */
+.topo{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--borda);
+  box-shadow:var(--sombra);z-index:30;
+}
+.logo{
+  display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;white-space:nowrap;
+}
+.logo .icone{
+  width:34px;height:34px;border-radius:8px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--primario),var(--primario-2));color:#fff;font-size:18px;
+}
+.topo-espaço{flex:1}
+.topo-acoes{display:flex;gap:8px;flex-wrap:wrap}
+/* ---------- Telas (tela inicial / editor) ---------- */
+.tela{display:none;flex:1;min-height:0;flex-direction:column}
+.tela.ativa{display:flex}
+/* ---------- Tela inicial ---------- */
+.tela-inicial{
+  overflow-y:auto;align-items:center;
+  background:
+    radial-gradient(1200px 500px at 20% -10%,var(--primario-claro),transparent 60%),
+    var(--bg);
+}
+.tela-inicial-inner{
+  width:min(860px,100%);padding:36px 20px 48px;text-align:center;
+}
+.tela-inicial h1{
+  font-size:28px;margin-bottom:8px;
+}
+.tela-inicial p.sub{
+  color:var(--texto-2);font-size:15px;max-width:560px;margin:0 auto 28px;line-height:1.6;
+}
+.cards-novo{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;
+}
+.card-diag{
+  background:var(--panel);border:1px solid var(--borda);border-radius:14px;
+  padding:22px 20px;text-align:left;box-shadow:var(--sombra);
+  transition:all .18s ease;display:flex;flex-direction:column;gap:12px;
+}
+.card-diag:hover{transform:translateY(-3px);box-shadow:var(--sombra-lg);border-color:var(--primario)}
+.card-diag .icone-diag{
+  width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font-size:26px;
+  background:var(--primario-claro);color:var(--primario);
+}
+.card-diag h3{font-size:16px}
+.card-diag p.desc{font-size:13px;color:var(--texto-2);line-height:1.5}
+.card-diag .meta{font-size:12px;color:var(--texto-2)}
+.card-diag .acoes{display:flex;gap:8px;margin-top:auto}
+.instruções{
+  margin-top:32px;background:var(--panel);border:1px solid var(--borda);border-radius:14px;
+  padding:20px 22px;text-align:left;box-shadow:var(--sombra);max-width:760px;margin-left:auto;margin-right:auto;
+}
+.instruções h4{font-size:14px;margin-bottom:10px}
+.instruções ul{list-style:none;display:grid;gap:6px}
+.instruções li{font-size:13.5px;color:var(--texto-2);line-height:1.5;padding-left:22px;position:relative}
+.instruções li::before{content:"✓";position:absolute;left:0;color:var(--sucesso);font-weight:700}
+/* ---------- Modos no editor ---------- */
+.modos{
+  display:flex;gap:6px;padding:8px 16px;background:var(--panel-2);
+  border-bottom:1px solid var(--borda);z-index:20;overflow-x:auto;
+}
+.modo-btn{
+  border:1px solid transparent;background:transparent;cursor:pointer;
+  padding:8px 16px;border-radius:8px;font-size:14px;font-weight:600;color:var(--texto-2);
+  display:flex;align-items:center;gap:8px;white-space:nowrap;transition:all .15s ease;
+}
+.modo-btn .num{
+  width:20px;height:20px;border-radius:6px;display:grid;place-items:center;
+  background:var(--borda);color:var(--texto-2);font-size:12px;
+}
+.modo-btn:hover{background:var(--panel);color:var(--texto)}
+.modo-btn.ativo{
+  background:var(--primario-claro);color:var(--primario);border-color:var(--primario);
+}
+.modo-btn.ativo .num{background:var(--primario);color:#fff}
+/* ---------- Layout ---------- */
+.layout{
+  display:grid;grid-template-columns:236px 1fr;
+  flex:1;min-height:0;
+}
+/* ---------- Paleta ---------- */
+.paleta{
+  background:var(--panel);border-right:1px solid var(--borda);
+  display:flex;flex-direction:column;min-height:0;
+}
+.paleta-titulo{
+  padding:14px 14px 6px;font-size:13px;font-weight:700;color:var(--texto-2);
+  text-transform:uppercase;letter-spacing:.06em;
+}
+.paleta-dica{padding:0 14px 10px;font-size:12px;color:var(--texto-2);line-height:1.4}
+.paleta-lista{
+  flex:1;overflow-y:auto;padding:4px 12px 16px;
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;
+}
+.item-bloco{
+  border:1px solid var(--borda);border-radius:var(--raio);background:var(--panel-2);
+  padding:10px 8px 8px;cursor:grab;text-align:center;user-select:none;
+  transition:all .15s ease;display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.item-bloco:hover{border-color:var(--primario);box-shadow:var(--sombra);transform:translateY(-1px)}
+.item-bloco:active{cursor:grabbing}
+.item-bloco .mini{width:44px;height:36px;display:grid;place-items:center}
+.item-bloco .label{font-size:11.5px;font-weight:600;color:var(--texto);line-height:1.2}
+.paleta-acoes{padding:10px 12px;border-top:1px solid var(--borda);display:grid;gap:6px}
+.paleta-dica2{font-size:11.5px;color:var(--texto-2);line-height:1.45;padding:0 14px 10px;grid-column:1/-1}
+/* ---------- Canvas ---------- */
+.editor{display:flex;flex-direction:column;min-height:0;min-width:0}
+.ferramentas{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--borda);
+}
+.ferr-grupo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ferr-divider{width:1px;height:26px;background:var(--borda);margin:0 2px}
+.fbtn{
+  border:1px solid var(--borda-2);background:var(--panel-2);color:var(--texto);
+  border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:6px;transition:all .15s ease;white-space:nowrap;
+}
+.fbtn:hover{border-color:var(--primario);color:var(--primario)}
+.fbtn.ativo{background:var(--primario);border-color:var(--primario);color:#fff}
+.fbtn.perigo:hover{border-color:var(--erro);color:var(--erro)}
+select.fbtn,input.fbtn{cursor:pointer;font-family:inherit}
+.zoom-contador{font-size:12px;color:var(--texto-2);min-width:46px;text-align:center}
+.canvas-wrap{
+  position:relative;flex:1;min-height:0;overflow:hidden;
+  background:var(--bg);
+}
+#canvas{width:100%;height:100%;display:block;cursor:default;touch-action:none}
+#canvas.ferramenta-conectar{cursor:crosshair}
+#canvas.arrastando-bg{cursor:grabbing}
+.dica-canvas{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  background:var(--panel);border:1px solid var(--borda);color:var(--texto-2);
+  padding:6px 14px;border-radius:20px;font-size:12.5px;box-shadow:var(--sombra);
+  pointer-events:none;
+}
+.dica-canvas.escondida{display:none}
+.elemento-selecionado-info{
+  position:absolute;bottom:10px;left:12px;
+  background:var(--panel);border:1px solid var(--borda);color:var(--texto-2);
+  padding:6px 12px;border-radius:8px;font-size:12.5px;box-shadow:var(--sombra);pointer-events:none;
+}
+/* ---------- Modal ---------- */
+.modal-fundo{
+  position:fixed;inset:0;background:rgba(15,20,35,.55);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:20px;
+  backdrop-filter:blur(2px);
+}
+.modal-fundo.aberto{display:flex}
+.modal{
+  background:var(--panel);border-radius:14px;box-shadow:var(--sombra-lg);
+  width:min(520px,100%);max-height:85vh;overflow-y:auto;animation:pop .2s ease;
+}
+@keyframes pop{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
+.modal-cabecalho{
+  padding:16px 20px;border-bottom:1px solid var(--borda);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.modal-cabecalho h3{font-size:16px}
+.modal-corpo{padding:20px}
+.modal-corpo label{display:block;font-size:13px;font-weight:600;color:var(--texto-2);margin-bottom:6px;margin-top:12px}
+.modal-corpo label:first-child{margin-top:0}
+.modal-corpo input,.modal-corpo textarea,.modal-corpo select{
+  width:100%;border:1px solid var(--borda-2);border-radius:8px;padding:9px 10px;
+  font-size:14px;font-family:inherit;background:var(--panel-2);color:var(--texto);
+}
+.modal-corpo input:focus,.modal-corpo textarea:focus,.modal-corpo select:focus{outline:2px solid var(--primario);outline-offset:1px}
+.modal-rodape{
+  padding:14px 20px;border-top:1px solid var(--borda);display:flex;gap:10px;justify-content:flex-end;
+}
+.btn{
+  border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;
+  transition:all .15s ease;font-family:inherit;
+}
+.btn-primario{background:var(--primario);color:#fff}
+.btn-primario:hover{background:var(--primario-2)}
+.btn-secundario{background:var(--panel-2);color:var(--texto);border:1px solid var(--borda-2)}
+.btn-secundario:hover{border-color:var(--primario);color:var(--primario)}
+.btn-perigo{background:var(--erro-claro);color:var(--erro);border:1px solid var(--erro)}
+.btn-perigo:hover{background:var(--erro);color:#fff}
+/* ---------- Toast ---------- */
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--panel);border:1px solid var(--borda);border-left:4px solid var(--primario);
+  color:var(--texto);padding:12px 20px;border-radius:10px;box-shadow:var(--sombra-lg);
+  font-size:14px;opacity:0;pointer-events:none;transition:all .25s ease;z-index:200;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.sucesso{border-left-color:var(--sucesso)}
+.toast.erro{border-left-color:var(--erro)}
+/* ---------- Responsivo ---------- */
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .paleta{
+    border-right:none;border-bottom:1px solid var(--borda);
+    max-height:160px;flex-direction:column;
+  }
+  .paleta-lista{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+  .topo{padding:8px 10px;gap:8px}
+  .logo span:not(.icone){font-size:15px}
+  .tela-inicial h1{font-size:22px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ Cabeçalho ============ -->
+<header class="topo">
+  <div class="logo"><span class="icone">🧩</span><span>ModelaDiagramas</span></div>
+  <div class="topo-espaço"></div>
+  <div class="topo-acoes" id="acoesTopo">
+    <button class="btn btn-secundario" id="btnExportarJSON" type="button" title="Exportar todos os diagramas em JSON">💾 Exportar JSON</button>
+    <button class="btn btn-secundario" id="btnImportarJSON" type="button" title="Importar diagramas de um JSON">📥 Importar JSON</button>
+    <input type="file" id="arquivoJSON" accept="application/json,.json" hidden>
+    <button class="btn btn-secundario" id="btnTema" type="button" title="Alternar tema claro/escuro">🌓</button>
+  </div>
+</header>
+
+<!-- ============ Tela inicial: criar / abrir diagramas ============ -->
+<div class="tela tela-inicial ativa" id="telaInicial">
+  <div class="tela-inicial-inner">
+    <h1>ModelaDiagramas</h1>
+    <p class="sub">Editor visual para montar seus diagramas manualmente. Escolha o tipo, vá para a tela de edição e utilize as ferramentas para desenhar seus blocos e conexões.</p>
+
+    <div class="cards-novo" id="cardsNovo"></div>
+
+    <div class="instruções">
+      <h4>Como montar o diagrama</h4>
+      <ul>
+        <li>Clique em <b>“Novo diagrama”</b> para abrir a tela de edição do tipo escolhido (o canvas começa vazio — você monta tudo manualmente).</li>
+        <li>No editor, clique ou arraste os blocos da paleta para o canvas: personagens em palito (atores), caixas de ação (casos de uso), nós de atividade, requisitos e outros.</li>
+        <li>Use a ferramenta <b>Conectar</b> para ligar os blocos com setas — no caso de uso, são as setas de associação, <b>&lt;&lt;include&gt;&gt;</b>, <b>&lt;&lt;extend&gt;&gt;</b> e generalização.</li>
+        <li>Arraste os blocos para posicionar, duplo clique para editar textos, e exporte o resultado em <b>SVG</b>, <b>PNG</b> ou <b>JSON</b>.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Tela do editor ============ -->
+<div class="tela" id="telaEditor">
+  <nav class="modos" aria-label="Tipos de diagrama">
+    <button class="modo-btn" type="button" data-modo="atividades"><span class="num">1</span> Diagrama de Atividades</button>
+    <button class="modo-btn" type="button" data-modo="casos"><span class="num">2</span> Diagrama de Casos de Uso</button>
+    <button class="modo-btn" type="button" data-modo="requisitos"><span class="num">3</span> Diagrama de Requisitos</button>
+  </nav>
+
+  <div class="layout">
+    <aside class="paleta">
+      <div class="paleta-titulo" id="paletaTitulo">Blocos disponíveis</div>
+      <p class="paleta-dica">Clique em um bloco para adicionar no centro, ou arraste para o canvas.</p>
+      <div class="paleta-lista" id="paletaLista"></div>
+      <div class="paleta-acoes">
+        <p class="paleta-dica2">
+          <b>Dica:</b> ferramenta <b>Selecionar</b>: clique num bloco, arraste para mover, Excluir para remover.
+          <b>Conectar</b>: clique no bloco de origem e depois no destino para criar a seta. Duplo clique em bloco ou seta edita o texto.
+        </p>
+      </div>
+    </aside>
+
+    <main class="editor">
+      <div class="ferramentas">
+        <div class="ferr-grupo">
+          <button class="fbtn" id="btnVoltar" type="button" title="Voltar à tela inicial">← Voltar</button>
+          <input class="fbtn" id="tituloProjeto" type="text" maxlength="80"
+                 placeholder="Nome do diagrama..." aria-label="Título do diagrama"
+                 style="flex:1;min-width:180px;padding:7px 10px;background:var(--panel-2)">
+        </div>
+        <div class="ferr-divider"></div>
+        <div class="ferr-grupo">
+          <button class="fbtn ativo" id="ferrSelecionar" type="button" title="Selecionar / mover (T)">🖱️ Selecionar</button>
+          <button class="fbtn" id="ferrConectar" type="button" title="Criar seta entre dois blocos (C)">➡️ Conectar</button>
+        </div>
+        <div class="ferr-divider"></div>
+        <div class="ferr-grupo">
+          <span style="font-size:12.5px;color:var(--texto-2)">Conexão:</span>
+          <div class="ferr-grupo" id="grupoConexoes" style="gap:4px"></div>
+        </div>
+        <div class="ferr-divider"></div>
+        <div class="ferr-grupo">
+          <button class="fbtn" id="ferrExcluir" type="button" title="Excluir selecionados (Delete)">🗑️ Excluir</button>
+          <button class="fbtn" id="ferrLimpar" type="button" title="Limpar todo o canvas">🧹 Limpar</button>
+          <div class="ferr-divider"></div>
+          <button class="fbtn" id="zoomIn" type="button" title="Aproximar">+</button>
+          <span class="zoom-contador" id="zoomContador">100%</span>
+          <button class="fbtn" id="zoomOut" type="button" title="Afastar">−</button>
+          <button class="fbtn" id="zoomReset" type="button" title="Repor zoom">⊡</button>
+        </div>
+        <div class="ferr-grupo" style="margin-left:auto">
+          <button class="fbtn" id="btnExportarSVG" type="button">🖼️ Exportar SVG</button>
+          <button class="fbtn" id="btnExportarPNG" type="button">🖼️ Exportar PNG</button>
+          <button class="fbtn" id="btnExemplo" type="button" title="Carregar um diagrama de exemplo (opcional, para referência)">✨ Exemplo</button>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap">
+        <svg id="canvas" xmlns="http://www.w3.org/2000/svg" role="application" aria-label="Área de desenho do diagrama">
+          <defs>
+            <pattern id="gradePadrao" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1.1" fill="var(--borda)" opacity=".55"/>
+            </pattern>
+            <marker id="setaMarker" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 Z" fill="var(--texto-2)"/>
+            </marker>
+            <marker id="setaMarkerSel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M0,1 L10,5 L0,9 Z" fill="var(--primario)"/>
+            </marker>
+          </defs>
+          <rect id="gradePlano" x="-5000" y="-5000" width="11000" height="11000" fill="url(#gradePadrao)" pointer-events="none"/>
+          <g id="camadaConexoes"></g>
+          <g id="camadaNos"></g>
+        </svg>
+        <div class="dica-canvas" id="dicaCanvas">Clique nos blocos da paleta para começar — ou arraste um para o canvas</div>
+        <div class="elemento-selecionado-info" id="infoSelecionado" hidden></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ============ Modal de confirmação / novo diagrama ============ -->
+<div class="modal-fundo" id="modalFundo">
+  <div class="modal">
+    <div class="modal-cabecalho">
+      <h3 id="modalTitulo">Confirmar</h3>
+      <button class="fbtn" id="modalFechar" type="button" title="Fechar">✕</button>
+    </div>
+    <div class="modal-corpo">
+      <p id="modalTexto" style="font-size:14px;line-height:1.6"></p>
+      <label>Nome do novo diagrama</label>
+      <input id="modalNome" type="text" maxlength="80" placeholder="Ex.: Diagrama de Casos de Uso — Cadastro">
+    </div>
+    <div class="modal-rodape">
+      <button class="btn btn-secundario" id="modalCancelar" type="button">Cancelar</button>
+      <button class="btn btn-perigo" id="modalConfirmar" type="button">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   ModelaDiagramas — editor visual de diagramas (montagem manual)
+   Tela inicial com "Novo diagrama" → tela de editor com paleta de blocos
+   e ferramentas de conexão. Suporta atividades, casos de uso e requisitos.
+   ========================================================================= */
+
+const CHAVE_SAVE="modela-diagramas-v1";
+const CHAVE_TEMA="modela-diagramas-tema";
+
+/* ---------- Estado central ---------- */
+const estado={
+  // três diagramas independentes, montados manualmente pelo usuário
+  diagramas:{
+    atividades:{titulo:"Diagrama de Atividades",no:[],seta:[]},
+    casos:{titulo:"Diagrama de Casos de Uso",no:[],seta:[]},
+    requisitos:{titulo:"Diagrama de Requisitos",no:[],seta:[]}
+  },
+  modoAtual:"casos",             // modo do editor aberto
+  ferramenta:"selecionar",       // "selecionar" | "conectar"
+  tipoConexao:"associacao",      // associacao | include | extend | geralizacao
+  selecionados:new Set(),
+  setaSelecionada:null,
+  origemConexao:null,
+  _idSeq:1
+};
+
+/* ---------- Configuração dos tipos de diagrama ---------- */
+const TIPOS_DIAG={
+  atividades:{
+    nome:"Diagrama de Atividades",
+    icone:"🗂️",
+    desc:"Blocos de início, ação, decisão, fork/join e fim, com setas do fluxo.",
+    conexoes:["associacao"]
+  },
+  casos:{
+    nome:"Diagrama de Casos de Uso",
+    icone:"🧑‍🤝‍🧑",
+    desc:"Atores (personagens em palito), caixas de ação (casos de uso), limite do sistema e notas.",
+    conexoes:["associacao","include","extend","geralizacao"]
+  },
+  requisitos:{
+    nome:"Diagrama de Requisitos",
+    icone:"📋",
+    desc:"Blocos de requisitos funcionais, não funcionais, atores e notas.",
+    conexoes:["associacao"]
+  }
+};
+
+/* ---------- Palette por modo ---------- */
+const PALETTE={
+  atividades:[
+    {id:"inicio",   label:"Início",        forma:"oval"},
+    {id:"acao",     label:"Ação",          forma:"retângulo"},
+    {id:"decisao",  label:"Decisão",       forma:"losango"},
+    {id:"barra",    label:"Fork / Join",   forma:"barra"},
+    {id:"alvo",     label:"Fim",           forma:"alvo"}
+  ],
+  casos:[
+    {id:"ator",     label:"Ator (personagem em palito)", forma:"ator"},
+    {id:"uc",       label:"Caixa de ação (caso de uso)", forma:"elipse"},
+    {id:"sistema",  label:"Limite do Sistema", forma:"limite"},
+    {id:"nota",     label:"Nota",          forma:"nota"}
+  ],
+  requisitos:[
+    {id:"rf",       label:"Requisito Funcional", forma:"retângulo"},
+    {id:"rnf",      label:"Requisito Não Funcional", forma:"retângulo-vaz"},
+    {id:"ator",     label:"Ator / Parte Interessada", forma:"ator"},
+    {id:"nota",     label:"Nota",          forma:"nota"}
+  ]
+};
+
+/* rótulos das conexões por modo */
+const RÓTULO_CONEXAO={
+  associacao:"Associação (seta)",
+  include:"<<include>>",
+  extend:"<<extend>>",
+  geralizacao:"Generalização (linha vazada)"
+};
+
+/* ---------- Definições de forma (SVG) ---------- */
+function formaSVG(tipo,h,w){
+  const k="var(--panel)", b="var(--borda-2)", p="var(--primario)",
+        p2="var(--primario-2)", t="var(--texto)", t2="var(--texto-2)";
+  switch(tipo){
+    case "oval": // início
+      return `<circle class="forma-pre" cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)/2-2}" fill="${p}"/>
+              <text class="no-texto" x="${w/2}" y="${h/2+5}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Início</text>`;
+    case "alvo": // fim — alvo em camadas
+      return `<circle class="forma-pre" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-3}" fill="${p}"/>
+              <circle class="forma-pre" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-11}" fill="${k}" stroke="${p}" stroke-width="3"/>
+              <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="12" font-weight="700">Fim</text>`;
+    case "barra": // fork/join
+      return `<rect class="forma-pre" x="2" y="4" width="${w-4}" height="${Math.min(18,h-8)}" rx="4" fill="${p}" stroke="${p2}" stroke-width="2"/>
+              <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${t2}">fork / join</text>`;
+    case "decisao":
+      return `<path class="forma-pre" d="M ${w/2},3 L ${w-3},${h/2} L ${w/2},${h-3} L 3,${h/2} Z"
+                    fill="${k}" stroke="${p2}" stroke-width="2.2"/>`;
+    case "retângulo":
+      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="8" fill="${k}" stroke="${p2}" stroke-width="2"/>`;
+    case "retângulo-vaz":
+      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="8"
+                    fill="${k}" stroke="${p2}" stroke-width="2" stroke-dasharray="7 5"/>`;
+    case "elipse":
+      return `<ellipse class="forma-pre" cx="${w/2}" cy="${h/2}" rx="${w/2-4}" ry="${h/2-4}"
+                    fill="${k}" stroke="${p2}" stroke-width="2"/>`;
+    case "ator": // figura de ator (personagem em palito)
+      const cx=w/2;
+      return `<circle class="forma-pre" cx="${cx}" cy="20" r="12" fill="none" stroke="${t2}" stroke-width="2.4"/>
+              <line class="forma-pre" x1="${cx}" y1="32" x2="${cx}" y2="${h-30}" stroke="${t2}" stroke-width="2.4"/>
+              <line class="forma-pre" x1="${cx-16}" y1="${h/2+6}" x2="${cx+16}" y2="${h/2+6}" stroke="${t2}" stroke-width="2.4"/>
+              <line class="forma-pre" x1="${cx}" y1="${h/2+8}" x2="${cx-13}" y2="${h-12}" stroke="${t2}" stroke-width="2.4"/>
+              <line class="forma-pre" x1="${cx}" y1="${h/2+8}" x2="${cx+13}" y2="${h-12}" stroke="${t2}" stroke-width="2.4"/>`;
+    case "limite":
+      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="4"
+                    fill="${k}" stroke="${t2}" stroke-width="2" stroke-dasharray="8 6" opacity=".85"/>`;
+    case "nota": // nota dobradinha
+      return `<path class="forma-pre" d="M2,4 h${w-18} l14,8 v${h-16} h-${w-4} v-${h-8} z"
+                    fill="${k}" stroke="${t2}" stroke-width="1.8" stroke-linejoin="round"/>`;
+    default:
+      return `<rect class="forma-pre" x="2" y="2" width="${w-4}" height="${h-4}" rx="8" fill="${k}" stroke="${b}" stroke-width="2"/>`;
+  }
+}
+
+/* dimensões padrão de cada bloco */
+function dimsPadrao(tipo){
+  switch(tipo){
+    case "inicio":   return {w:110,h:66};
+    case "alvo":     return {w:88,h:88};
+    case "barra":    return {w:140,h:34};
+    case "decisao":  return {w:170,h:110};
+    case "acao":     return {w:180,h:60};
+    case "elipse":   return {w:170,h:80};
+    case "ator":     return {w:96,h:130};
+    case "limite":   return {w:620,h:380};
+    case "nota":     return {w:140,h:96};
+    default:         return {w:180,h:60};
+  }
+}
+
+/* ---------- Utilitários ---------- */
+function novoId(){ return "N"+(estado._idSeq++).toString(36)+Math.random().toString(36).slice(2,6); }
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/\n/g,"<tspan x='0' dy='15'>");
+}
+function toast(msg, tipo){
+  const el=document.getElementById("toast");
+  el.textContent=msg;
+  el.className="toast show "+(tipo||"");
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>el.className="toast "+(tipo||""),2600);
+}
+function diagramaAtual(){ return estado.diagramas[estado.modoAtual]; }
+
+/* modal: confirma com opção de nomear */
+function confirmarComNome(titulo,texto,nomePadrao){
+  return new Promise(res=>{
+    const fundo=document.getElementById("modalFundo");
+    document.getElementById("modalTitulo").textContent=titulo;
+    document.getElementById("modalTexto").textContent=texto;
+    const nome=document.getElementById("modalNome");
+    nome.value=nomePadrao||"";
+    fundo.classList.add("aberto");
+    const concluir=v=>{
+      fundo.classList.remove("aberto");
+      btnConfirmar.removeEventListener("click",ok);
+      btnCancelar.removeEventListener("click",no);
+      document.getElementById("modalFechar").removeEventListener("click",no);
+      nome.removeEventListener("keydown",tecla);
+      res(v?{ok:true,nome:nome.value.trim()}:{ok:false});
+    };
+    const ok=()=>concluir(true), no=()=>concluir(false);
+    const tecla=e=>{ if(e.key==="Enter"){ e.preventDefault(); ok(); } };
+    const btnConfirmar=document.getElementById("modalConfirmar");
+    const btnCancelar=document.getElementById("modalCancelar");
+    btnConfirmar.addEventListener("click",ok);
+    btnCancelar.addEventListener("click",no);
+    document.getElementById("modalFechar").addEventListener("click",no);
+    nome.addEventListener("keydown",tecla);
+    setTimeout(()=>nome.focus(),60);
+  });
+}
+
+/* ---------- Persistência ---------- */
+function salvarLocal(){
+  try{ localStorage.setItem(CHAVE_SAVE,JSON.stringify(estado.diagramas)); }
+  catch(e){ /* fallback silencioso — memória mantém o estado */ }
+}
+function carregarLocal(){
+  try{
+    const dados=localStorage.getItem(CHAVE_SAVE);
+    if(dados){
+      const obj=JSON.parse(dados);
+      if(obj&&obj.atividades&&obj.casos&&obj.requisitos){
+        estado.diagramas=obj;
+      }
+    }
+  }catch(e){ /* dados corrompidos — ignorar */ }
+}
+function temaAplicar(tema){
+  document.documentElement.setAttribute("data-theme",tema);
+  try{ localStorage.setItem(CHAVE_TEMA,tema); }catch(e){}
+  render();
+}
+function temaInicial(){
+  try{
+    const t=localStorage.getItem(CHAVE_TEMA);
+    if(t) return t;
+  }catch(e){}
+  return window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";
+}
+
+/* =========================================================================
+   Telas (inicial / editor)
+   ========================================================================= */
+function mostrarTela(nome){
+  document.getElementById("telaInicial").classList.toggle("ativa",nome==="inicial");
+  document.getElementById("telaEditor").classList.toggle("ativa",nome==="editor");
+  if(nome==="inicial") renderCards();
+  if(nome==="editor"){ renderPaleta(); renderConexoes(); render(); aplicarZoomVisual(); }
+}
+function abrirEditor(modo){
+  estado.modoAtual=modo;
+  estado.selecionados.clear(); estado.setaSelecionada=null; estado.origemConexao=null;
+  estado.tipoConexao=TIPOS_DIAG[modo].conexoes[0];
+  document.querySelectorAll(".modo-btn").forEach(b=>b.classList.toggle("ativo",b.getAttribute("data-modo")===modo));
+  mostrarTela("editor");
+}
+
+/* ---------- Cards da tela inicial ---------- */
+function renderCards(){
+  const cont=document.getElementById("cardsNovo");
+  cont.innerHTML="";
+  for(const modo of Object.keys(TIPOS_DIAG)){
+    const cfg=TIPOS_DIAG[modo];
+    const d=estado.diagramas[modo];
+    const card=document.createElement("div");
+    card.className="card-diag";
+    const temConteudo=d.no.length>0||d.seta.length>0;
+    card.innerHTML=`
+      <div class="icone-diag">${cfg.icone}</div>
+      <h3>${cfg.nome}</h3>
+      <p class="desc">${cfg.desc}</p>
+      <p class="meta">${temConteudo?`${d.no.length} bloco(s) · ${d.seta.length} conexão(ões)`:"canvas vazio — comece montando"}</p>
+      <div class="acoes">
+        <button class="btn btn-primario" type="button" data-acao="novo" data-modo="${modo}">＋ Novo diagrama</button>
+        ${temConteudo?`<button class="btn btn-secundario" type="button" data-acao="abrir" data-modo="${modo}">Abrir</button>`:""}
+      </div>`;
+    cont.appendChild(card);
+  }
+  cont.querySelectorAll("button[data-modo]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const modo=btn.getAttribute("data-modo");
+      const acao=btn.getAttribute("data-acao");
+      if(acao==="abrir"){
+        abrirEditor(modo);
+      }else{
+        novoDiagrama(modo);
+      }
+    });
+  });
+}
+
+/* fluxo "Novo diagrama": limpa (com confirmação) e abre o editor */
+function novoDiagrama(modo){
+  const d=estado.diagramas[modo];
+  const cfg=TIPOS_DIAG[modo];
+  const limpar=()=>{
+    d.no=[]; d.seta=[];
+    estado.selecionados.clear(); estado.setaSelecionada=null; estado.origemConexao=null;
+    salvarLocal();
+    abrirEditor(modo);
+    toast("Novo "+cfg.nome+" aberto — comece montando","sucesso");
+  };
+  if(d.no.length>0||d.seta.length>0){
+    confirmarComNome("Novo diagrama",`O canvas atual de "${cfg.nome}" tem ${d.no.length} bloco(s) e ${d.seta.length} conexão(ões). Iniciar um novo diagrama apaga esse conteúdo.`,cfg.nome)
+      .then(r=>{ if(r.ok) limpar(); });
+  }else{
+    confirmarComNome("Novo diagrama",`Criar um novo ${cfg.nome}? O canvas será iniciado vazio para você montar manualmente.`,cfg.nome)
+      .then(r=>{ if(r.ok){ d.titulo=r.nome||cfg.nome; limpar(); } });
+  }
+}
+
+/* =========================================================================
+   Renderização do canvas
+   ========================================================================= */
+const svg=document.getElementById("canvas");
+const camadaNos=document.getElementById("camadaNos");
+const camadaConexoes=document.getElementById("camadaConexoes");
+
+function aplicarZoomVisual(){
+  const wrap=document.getElementById("canvasWrap");
+  const r=wrap.getBoundingClientRect();
+  const w=r.width/estado.zoom, h=r.height/estado.zoom;
+  svg.setAttribute("viewBox",`${-w/2} ${-h/2} ${w} ${h}`);
+  document.getElementById("zoomContador").textContent=Math.round(estado.zoom*100)+"%";
+}
+
+/* âncoras (pontos de conexão) de cada bloco */
+function ancoras(no){
+  const {w,h}=dimsPadrao(no.tipo);
+  const cx=no.x+w/2, cy=no.y+h/2;
+  return {
+    topo:{x:cx,y:no.y},
+    direita:{x:no.x+w,y:cy},
+    inferior:{x:cx,y:no.y+h},
+    esquerda:{x:no.x,y:cy}
+  };
+}
+/* melhor par de âncoras entre dois blocos */
+function parAncoras(a,b){
+  const aa=ancoras(a), ba=ancoras(b);
+  const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
+              ["topo","direita"],["direita","topo"],["inferior","esquerda"],["esquerda","inferior"]];
+  let melhor=null, menor=Infinity;
+  for(const [x,y] of cand){
+    const p=aa[x], q=ba[y];
+    const d=Math.hypot(p.x-q.x,p.y-q.y);
+    if(d<menor){menor=d;melhor={origem:x,destino:y,p1:p,p2:q};}
+  }
+  return melhor;
+}
+/* caminho ortogonal (L) de p1 até p2 */
+function caminhoL(p1,p2){
+  const dx=p2.x-p1.x, dy=p2.y-p1.y;
+  if(Math.abs(dx)<1&&Math.abs(dy)<1) return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+  if(Math.abs(dx)>=Math.abs(dy)) return `M ${p1.x} ${p1.y} L ${p2.x} ${p1.y} L ${p2.x} ${p2.y}`;
+  return `M ${p1.x} ${p1.y} L ${p1.x} ${p2.y} L ${p2.x} ${p2.y}`;
+}
+
+function render(){
+  const d=diagramaAtual();
+  /* ---- blocos ---- */
+  camadaNos.innerHTML="";
+  for(const no of d.no){
+    const {w,h}=dimsPadrao(no.tipo);
+    const g=document.createElementNS("http://www.w3.org/2000/svg","g");
+    g.setAttribute("class","no-grp"+(estado.selecionados.has(no.id)?" selecionado":""));
+    g.setAttribute("transform",`translate(${no.x},${no.y})`);
+    g.setAttribute("data-id",no.id);
+    g.innerHTML=formaSVG(no.tipo,w,h);
+    /* texto editável */
+    let tx=w/2, ty=h/2+5, anchor="middle";
+    if(no.tipo==="alvo"||no.tipo==="barra"){tx=w/2;ty=h+18;anchor="middle";}
+    else if(no.tipo==="ator"){tx=w/2;ty=h-8;anchor="middle";}
+    else if(no.tipo==="limite"){tx=14;ty=26;anchor="start";}
+    else if(no.tipo==="nota"){tx=14;ty=30;anchor="start";}
+    const texto=document.createElementNS("http://www.w3.org/2000/svg","text");
+    texto.setAttribute("class","no-texto");
+    texto.setAttribute("x",tx);texto.setAttribute("y",ty);
+    texto.setAttribute("text-anchor",anchor);
+    if(no.tipo!=="inicio"&&no.tipo!=="alvo"){
+      const linhas=(no.texto||"").split("\n");
+      linhas.forEach((ln,i)=>{
+        const ts=document.createElementNS("http://www.w3.org/2000/svg","tspan");
+        ts.setAttribute("x",tx);
+        ts.setAttribute("dy",i===0?0:15);
+        ts.textContent=ln;
+        texto.appendChild(ts);
+      });
+      g.appendChild(texto);
+    }
+    /* âncoras visíveis na ferramenta conectar ou quando selecionado */
+    if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
+      const aa=ancoras(no);
+      for(const k of ["topo","direita","inferior","esquerda"]){
+        const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
+        circ.setAttribute("class","ancora");
+        circ.setAttribute("cx",aa[k].x-no.x);
+        circ.setAttribute("cy",aa[k].y-no.y);
+        circ.setAttribute("r",6);
+        g.appendChild(circ);
+      }
+    }
+    g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
+    g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoNo(no); };
+    camadaNos.appendChild(g);
+  }
+  /* ---- setas ---- */
+  camadaConexoes.innerHTML="";
+  for(const s of d.seta){
+    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
+    if(!a||!b) continue;
+    const par=parAncoras(a,b);
+    const dPath=caminhoL(par.p1,par.p2);
+    const sel=estado.setaSelecionada===s.id;
+    const semSeta=s.tipo==="geralizacao";
+    const marcaFinal = semSeta ? "" : (sel ? "url(#setaMarkerSel)" : "url(#setaMarker)");
+    const marca=(s.tipo==="include"||s.tipo==="extend")?`<<${s.tipo}>>`:"";
+    const lblX=(par.p1.x+par.p2.x)/2, lblY=(par.p1.y+par.p2.y)/2;
+    let html=`<path class="conector ${sel?"selecionado":""}"
+              d="${dPath}" marker-end="${marcaFinal}"
+              ${s.tipo==="geralizacao"?'stroke-dasharray="6 5"':""}/>`;
+    if(marca) html+=`<rect x="${lblX-28}" y="${lblY-9}" width="56" height="16" rx="4" fill="var(--panel)" stroke="var(--borda)"/>
+                     <text class="conector-marca ${s.tipo}" x="${lblX}" y="${lblY+4}" text-anchor="middle">${marca}</text>`;
+    if(s.rotulo&&s.rotulo.trim()){
+      html+=`<rect x="${lblX-s.rotulo.length*3.6-6}" y="${lblY-22}" width="${s.rotulo.length*7.2+12}" height="18" rx="6" fill="var(--panel)" stroke="var(--borda)" opacity=".95"/>
+             <text class="conector-marca" x="${lblX}" y="${lblY-8}" text-anchor="middle">${esc(s.rotulo)}</text>`;
+    }
+    const g=document.createElementNS("http://www.w3.org/2000/svg","g");
+    g.setAttribute("data-seta",s.id);
+    g.setAttribute("class",sel?"seta-grp selecionada":"seta-grp");
+    g.innerHTML=html;
+    g.style.pointerEvents="auto";
+    g.onclick=ev=>{ ev.stopPropagation(); clickSeta(s); };
+    g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoSeta(s); };
+    camadaConexoes.appendChild(g);
+  }
+  /* ---- título ---- */
+  document.getElementById("tituloProjeto").value=d.titulo||"";
+  /* ---- dicas ---- */
+  const dica=document.getElementById("dicaCanvas");
+  dica.style.display=d.no.length===0?"block":"none";
+  const info=document.getElementById("infoSelecionado");
+  if(estado.selecionados.size||estado.setaSelecionada){
+    info.hidden=false;
+    let txt=[];
+    if(estado.selecionados.size) txt.push(estado.selecionados.size+" bloco(s) selecionado(s)");
+    if(estado.setaSelecionada) txt.push("1 seta selecionada");
+    info.textContent=txt.join(" • ")+" — arraste para mover, Excluir para remover";
+  }else info.hidden=true;
+}
+
+/* ---------- Interação com blocos e setas ---------- */
+function clickNo(no,ev){
+  if(estado.ferramenta==="conectar"){
+    if(!estado.origemConexao){
+      estado.origemConexao=no.id; render();
+      toast("Bloco origem definido. Clique no bloco de destino para criar a seta.","sucesso");
+    }else if(estado.origemConexao===no.id){
+      estado.origemConexao=null; render();
+    }else{
+      adicionarSeta(estado.origemConexao,no.id);
+      estado.origemConexao=null;
+    }
+    return;
+  }
+  if(ev.shiftKey){
+    if(estado.selecionados.has(no.id)) estado.selecionados.delete(no.id);
+    else estado.selecionados.add(no.id);
+  }else{
+    estado.selecionados.clear();
+    estado.selecionados.add(no.id);
+    estado.setaSelecionada=null;
+  }
+  render();
+}
+function clickSeta(s){
+  if(estado.ferramenta==="conectar") return;
+  estado.selecionados.clear();
+  estado.setaSelecionada=estado.setaSelecionada===s.id?null:s.id;
+  render();
+}
+function editarTextoNo(no){
+  const atual=no.texto!==undefined?no.texto:(no.tipo==="limite"?"Sistema":"");
+  const v=prompt("Edite o texto do bloco:",atual);
+  if(v!==null){
+    no.texto=v;
+    if(no.tipo==="limite"&&v.trim()==="") no.texto="Sistema";
+    salvarLocal(); render();
+  }
+}
+function editarTextoSeta(s){
+  const v=prompt("Rótulo da conexão (em branco para remover):",s.rotulo||"");
+  if(v!==null){ s.rotulo=v; salvarLocal(); render(); }
+}
+function adicionarSeta(de,para){
+  const d=diagramaAtual();
+  if(de===para){ toast("Não é possível conectar um bloco a ele mesmo.","erro"); return;}
+  if(d.seta.some(s=>s.de===de&&s.para===para)){ toast("Esta conexão já existe.","erro"); return;}
+  d.seta.push({id:novoId(),de,para,tipo:estado.tipoConexao,rotulo:""});
+  salvarLocal(); render();
+  toast("Seta criada ✓","sucesso");
+}
+function excluirSelecionados(){
+  const d=diagramaAtual();
+  const nos=[...estado.selecionados].map(id=>d.no.find(n=>n.id===id)).filter(Boolean);
+  if(nos.length===0&&!estado.setaSelecionada){ toast("Nada selecionado para excluir.","erro"); return;}
+  const msg=nos.length?`Excluir ${nos.length} bloco(s) e todas as conexões ligadas a eles?`:"Excluir a seta selecionada?";
+  confirmarComNome("Excluir elementos",msg,"").then(r=>{
+    if(!r.ok) return;
+    const ids=new Set(nos.map(n=>n.id));
+    d.no=d.no.filter(n=>!ids.has(n.id));
+    d.seta=d.seta.filter(s=>!ids.has(s.de)&&!ids.has(s.para)&&s.id!==estado.setaSelecionada);
+    estado.selecionados.clear(); estado.setaSelecionada=null;
+    salvarLocal(); render();
+    toast("Elementos excluídos","sucesso");
+  });
+}
+
+/* ---------- Adicionar bloco ---------- */
+function adicionarBloco(tipo,x,y){
+  const d=diagramaAtual();
+  if(x===undefined||y===undefined){
+    const wrap=document.getElementById("canvasWrap").getBoundingClientRect();
+    x=wrap.width/2-90; y=wrap.height/2-40;
+  }
+  const dim=dimsPadrao(tipo);
+  const no={id:novoId(),tipo,x:Math.round(x-dim.w/2),y:Math.round(y-dim.h/2),texto:tipo==="limite"?"Sistema":""};
+  d.no.push(no);
+  estado.selecionados.clear(); estado.selecionados.add(no.id);
+  estado.setaSelecionada=null;
+  render();
+  return no;
+}
+
+/* ---------- Arrastar blocos e pan ---------- */
+function posMundo(clientX,clientY){
+  const pt=svg.createSVGPoint(); pt.setXY(clientX,clientY);
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+svg.addEventListener("pointerdown",ev=>{
+  if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")||ev.target.classList.contains("ancora")) return;
+  if(estado.ferramenta==="selecionar"&&!estado.origemConexao){
+    const p0=posMundo(ev.clientX,ev.clientY);
+    svg.classList.add("arrastando-bg");
+    const mover=e=>{
+      const p=posMundo(e.clientX,e.clientY);
+      const vb=svg.viewBox.baseVal;
+      svg.setAttribute("viewBox",`${vb.x+(p0.x-p.x)} ${vb.y+(p0.y-p.y)} ${vb.width} ${vb.height}`);
+    };
+    const fim=()=>{ svg.classList.remove("arrastando-bg");
+      svg.removeEventListener("pointermove",mover); svg.removeEventListener("pointerup",fim); svg.removeEventListener("pointercancel",fim); };
+    svg.addEventListener("pointermove",mover);
+    svg.addEventListener("pointerup",fim);
+    svg.addEventListener("pointercancel",fim);
+  }
+});
+let arrastagem=null;
+svg.addEventListener("pointerdown",ev=>{
+  const grp=ev.target.closest(".no-grp");
+  if(!grp) return;
+  const no=diagramaAtual().no.find(n=>n.id===grp.getAttribute("data-id"));
+  if(!no) return;
+  if(estado.ferramenta==="conectar") return;
+  if(!estado.selecionados.has(no.id)){
+    if(!ev.shiftKey){ estado.selecionados.clear(); estado.setaSelecionada=null; }
+    estado.selecionados.add(no.id); render();
+  }
+  const p0=posMundo(ev.clientX,ev.clientY);
+  const originais=new Map();
+  for(const n of diagramaAtual().no.filter(n=>estado.selecionados.has(n.id))) originais.set(n.id,{x:n.x,y:n.y});
+  arrastagem={p0,originais};
+  try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
+});
+svg.addEventListener("pointermove",ev=>{
+  if(!arrastagem) return;
+  const p=posMundo(ev.clientX,ev.clientY);
+  const dx=p.x-arrastagem.p0.x, dy=p.y-arrastagem.p0.y;
+  for(const [id,o] of arrastagem.originais){
+    const n=diagramaAtual().no.find(x=>x.id===id);
+    if(n){ n.x=Math.round(o.x+dx); n.y=Math.round(o.y+dy); }
+  }
+  render();
+});
+const fimArrasto=()=>{ if(arrastagem){ arrastagem=null; salvarLocal(); } };
+svg.addEventListener("pointerup",fimArrasto);
+svg.addEventListener("pointercancel",fimArrasto);
+
+svg.addEventListener("click",ev=>{
+  if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")) return;
+  if(estado.ferramenta==="conectar"&&estado.origemConexao){
+    estado.origemConexao=null; render();
+  }else{
+    estado.selecionados.clear(); estado.setaSelecionada=null;
+    render();
+  }
+});
+
+/* =========================================================================
+   Paleta, modos e ferramentas
+   ========================================================================= */
+function renderPaleta(){
+  const lista=document.getElementById("paletaLista");
+  lista.innerHTML="";
+  document.getElementById("paletaTitulo").textContent=
+    estado.modoAtual==="atividades"?"Blocos de atividade":
+    estado.modoAtual==="casos"?"Blocos de caso de uso":"Blocos de requisitos";
+  for(const it of PALETTE[estado.modoAtual]){
+    const div=document.createElement("div");
+    div.className="item-bloco";
+    div.draggable=false;
+    const {w,h}=dimsPadrao(it.id);
+    div.innerHTML=`<svg width="44" height="36" viewBox="0 0 ${Math.max(w,110)} ${Math.max(h,66)}">${formaSVG(it.id,Math.max(h,66),Math.max(w,110))}</svg><span class="label">${it.label}</span>`;
+    div.addEventListener("click",()=>adicionarBloco(it.id));
+    div.addEventListener("pointerdown",e=>{
+      if(e.button!==0&&e.pointerType==="mouse") return;
+      const tipo=it.id;
+      const ghost=document.createElement("div");
+      ghost.textContent=it.label;
+      ghost.style.cssText="position:fixed;z-index:300;background:var(--panel);border:1px solid var(--primario);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;box-shadow:var(--sombra-lg);pointer-events:none;transform:translate(-50%,-50%)";
+      ghost.style.left=e.clientX+"px";ghost.style.top=e.clientY+"px";
+      document.body.appendChild(ghost);
+      const mover=ev=>{ ghost.style.left=ev.clientX+"px";ghost.style.top=ev.clientY+"px"; };
+      const fim=ev=>{
+        document.body.removeChild(ghost);
+        document.removeEventListener("pointermove",mover);
+        document.removeEventListener("pointerup",fim);
+        if(document.getElementById("canvasWrap").contains(document.elementFromPoint(ev.clientX,ev.clientY))){
+          const p=posMundo(ev.clientX,ev.clientY);
+          adicionarBloco(tipo,p.x,p.y);
+        }
+      };
+      document.addEventListener("pointermove",mover);
+      document.addEventListener("pointerup",fim);
+    });
+    lista.appendChild(div);
+  }
+}
+/* botões de tipo de conexão por modo */
+function renderConexoes(){
+  const grupo=document.getElementById("grupoConexoes");
+  grupo.innerHTML="";
+  for(const tipo of TIPOS_DIAG[estado.modoAtual].conexoes){
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="fbtn"+(estado.tipoConexao===tipo?" ativo":"");
+    b.textContent=RÓTULO_CONEXAO[tipo];
+    b.title=`Conexão: ${RÓTULO_CONEXAO[tipo]}`;
+    b.addEventListener("click",()=>{
+      estado.tipoConexao=tipo;
+      renderConexoes();
+    });
+    grupo.appendChild(b);
+  }
+}
+document.querySelectorAll(".modo-btn").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".modo-btn").forEach(b=>b.classList.remove("ativo"));
+    btn.classList.add("ativo");
+    estado.modoAtual=btn.getAttribute("data-modo");
+    estado.selecionados.clear(); estado.setaSelecionada=null; estado.origemConexao=null;
+    estado.tipoConexao=TIPOS_DIAG[estado.modoAtual].conexoes[0];
+    renderPaleta(); renderConexoes(); render();
+  });
+});
+document.getElementById("btnVoltar").addEventListener("click",()=>mostrarTela("inicial"));
+
+function definirFerramenta(f){
+  estado.ferramenta=f;
+  estado.origemConexao=null;
+  document.getElementById("ferrSelecionar").classList.toggle("ativo",f==="selecionar");
+  document.getElementById("ferrConectar").classList.toggle("ativo",f==="conectar");
+  svg.classList.toggle("ferramenta-conectar",f==="conectar");
+  render();
+}
+document.getElementById("ferrSelecionar").addEventListener("click",()=>definirFerramenta("selecionar"));
+document.getElementById("ferrConectar").addEventListener("click",()=>definirFerramenta("conectar"));
+document.getElementById("ferrExcluir").addEventListener("click",excluirSelecionados);
+document.getElementById("ferrLimpar").addEventListener("click",()=>{
+  const d=diagramaAtual();
+  if(d.no.length===0&&d.seta.length===0){ toast("O canvas já está vazio.","erro"); return;}
+  confirmarComNome("Limpar canvas",`Remover todos os ${d.no.length} bloco(s) e ${d.seta.length} conexão(ões) de "${d.titulo}"?`,d.titulo)
+    .then(r=>{ if(r.ok){ d.no=[]; d.seta=[]; estado.selecionados.clear(); estado.setaSelecionada=null; salvarLocal(); render(); toast("Canvas limpo","sucesso"); } });
+});
+document.getElementById("tituloProjeto").addEventListener("input",e=>{
+  diagramaAtual().titulo=e.target.value; salvarLocal();
+});
+document.getElementById("zoomIn").addEventListener("click",()=>{ estado.zoom=Math.min(3,estado.zoom*1.2); aplicarZoomVisual(); });
+document.getElementById("zoomOut").addEventListener("click",()=>{ estado.zoom=Math.max(0.3,estado.zoom/1.2); aplicarZoomVisual(); });
+document.getElementById("zoomReset").addEventListener("click",()=>{ estado.zoom=1; aplicarZoomVisual(); });
+document.getElementById("btnTema").addEventListener("click",()=>{
+  const atual=document.documentElement.getAttribute("data-theme");
+  temaAplicar(atual==="dark"?"light":"dark");
+});
+
+/* =========================================================================
+   Exportação (SVG / PNG) e import/export JSON
+   ========================================================================= */
+function bboxDoCanvas(){
+  const d=diagramaAtual();
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const no of d.no){
+    const dim=dimsPadrao(no.tipo);
+    minX=Math.min(minX,no.x); minY=Math.min(minY,no.y);
+    maxX=Math.max(maxX,no.x+dim.w); maxY=Math.max(maxY,no.y+dim.h);
+    if(no.tipo==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+26);
+  }
+  if(!isFinite(minX)){ minX=0;minY=0;maxX=800;maxY=600; }
+  const PAD=60;
+  return {x:minX-PAD,y:minY-PAD,w:maxX-minX+PAD*2,h:maxY-minY+PAD*2};
+}
+function construirSVGExport(){
+  const d=diagramaAtual();
+  const bb=bboxDoCanvas();
+  const clone=svg.cloneNode(true);
+  clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  clone.querySelector("#gradePlano")?.remove();
+  const contNos=clone.querySelector("#camadaNos");
+  if(contNos) contNos.querySelectorAll(".ancora").forEach(n=>n.remove());
+  clone.setAttribute("viewBox",`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
+  clone.setAttribute("width",bb.w); clone.setAttribute("height",bb.h);
+  const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  bg.setAttribute("x",bb.x);bg.setAttribute("y",bb.y);bg.setAttribute("width",bb.w);bg.setAttribute("height",bb.h);
+  bg.setAttribute("fill","#ffffff");
+  clone.insertBefore(bg,clone.firstChild);
+  return {svg:clone,bb};
+}
+function download(nome,conteudo,mime){
+  const blob=new Blob([conteudo],{type:mime});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=nome;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); },300);
+}
+function nomeArquivo(base,ext){
+  const limpo=(base||"diagrama").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"")
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60);
+  return (limpo||"diagrama")+ext;
+}
+function exportar(tipo){
+  const d=diagramaAtual();
+  if(d.no.length===0){ toast("Adicione blocos antes de exportar.","erro"); return;}
+  if(tipo==="svg"){
+    const {svg:clone}=construirSVGExport();
+    const ser=new XMLSerializer().serializeToString(clone);
+    download(nomeArquivo(d.titulo,"-diagrama.svg"),ser,"image/svg+xml;charset=utf-8");
+    toast("SVG exportado ✓","sucesso");
+  }else{
+    const {svg:clone,bb}=construirSVGExport();
+    const ser=new XMLSerializer().serializeToString(clone);
+    const blob=new Blob([ser],{type:"image/svg+xml;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{
+      const scale=2;
+      const canvas=document.createElement("canvas");
+      canvas.width=bb.w*scale; canvas.height=bb.h*scale;
+      const ctx=canvas.getContext("2d");
+      ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b=>{
+        const a=document.createElement("a");
+        a.href=URL.createObjectURL(b); a.download=nomeArquivo(d.titulo,"-diagrama.png");
+        document.body.appendChild(a); a.click();
+        setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); },300);
+        toast("PNG exportado ✓","sucesso");
+      },"image/png");
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); toast("Falha ao exportar PNG.","erro"); };
+    img.src=url;
+  }
+}
+document.getElementById("btnExportarSVG").addEventListener("click",()=>exportar("svg"));
+document.getElementById("btnExportarPNG").addEventListener("click",()=>exportar("png"));
+document.getElementById("btnExportarJSON").addEventListener("click",()=>{
+  download(nomeArquivo("modela-diagramas",".json"),JSON.stringify(estado.diagramas,null,2),"application/json");
+  toast("JSON exportado ✓","sucesso");
+});
+document.getElementById("btnImportarJSON").addEventListener("click",()=>document.getElementById("arquivoJSON").click());
+document.getElementById("arquivoJSON").addEventListener("change",e=>{
+  const arquivo=e.target.files[0];
+  if(!arquivo) return;
+  const leitor=new FileReader();
+  leitor.onload=()=>{
+    try{
+      const obj=JSON.parse(leitor.result);
+      if(!obj.atividades||!obj.casos||!obj.requisitos) throw new Error("estrutura inválida");
+      estado.diagramas=obj;
+      estado.selecionados.clear(); estado.setaSelecionada=null; estado.origemConexao=null;
+      salvarLocal(); renderCards(); renderPaleta(); renderConexoes(); render();
+      toast("JSON importado ✓","sucesso");
+    }catch(err){ toast("Arquivo JSON inválido ou incompatível.","erro"); }
+    e.target.value="";
+  };
+  leitor.readAsText(arquivo);
+});
+
+/* =========================================================================
+   Projeto de exemplo (opcional — para referência; o usuário monta manualmente)
+   ========================================================================= */
+function exemplo(){
+  const m=estado.modoAtual;
+  if(m==="atividades"){
+    estado.diagramas.atividades={
+      titulo:"Empréstimo de Livro (exemplo)",
+      no:[
+        {id:"0",tipo:"inicio",x:300,y:40,texto:""},
+        {id:"1",tipo:"acao",x:255,y:150,texto:"Acesso ao sistema"},
+        {id:"2",tipo:"decisao",x:235,y:250,texto:"Livro disponível?"},
+        {id:"3",tipo:"acao",x:110,y:390,texto:"Exibir mensagem\nde indisponibilidade"},
+        {id:"4",tipo:"acao",x:380,y:390,texto:"Registrar empréstimo"},
+        {id:"5",tipo:"barra",x:300,y:490,texto:""},
+        {id:"6",tipo:"acao",x:180,y:560,texto:"Atualizar estoque"},
+        {id:"7",tipo:"acao",x:430,y:560,texto:"Gerar notificação"},
+        {id:"8",tipo:"alvo",x:300,y:660,texto:""}
+      ],
+      seta:[
+        {id:novoId(),de:"0",para:"1",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"1",para:"2",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"2",para:"3",tipo:"associacao",rotulo:"Não"},
+        {id:novoId(),de:"2",para:"4",tipo:"associacao",rotulo:"Sim"},
+        {id:novoId(),de:"4",para:"5",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"5",para:"6",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"5",para:"7",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"6",para:"8",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"7",para:"8",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"3",para:"8",tipo:"associacao",rotulo:""}
+      ]
+    };
+  }else if(m==="casos"){
+    estado.diagramas.casos={
+      titulo:"Sistema de Biblioteca (exemplo)",
+      no:[
+        {id:"a1",tipo:"limite",x:240,y:80,texto:"Sistema de Biblioteca"},
+        {id:"u1",tipo:"uc",x:300,y:170,texto:"Empréstimo"},
+        {id:"u2",tipo:"uc",x:470,y:170,texto:"Cadastro de Livro"},
+        {id:"u3",tipo:"uc",x:300,y:320,texto:"Reserva"},
+        {id:"u4",tipo:"uc",x:470,y:320,texto:"Renovação"},
+        {id:"at1",tipo:"ator",x:60,y:200,texto:"Aluno"},
+        {id:"at2",tipo:"ator",x:60,y:380,texto:"Bibliotecário"},
+        {id:"n1",tipo:"nota",x:600,y:100,texto:"O aluno pode\nrealizar reservas\nonline."}
+      ],
+      seta:[
+        {id:novoId(),de:"at1",para:"u1",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"at1",para:"u3",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"at2",para:"u1",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"at2",para:"u2",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"at2",para:"u4",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"u1",para:"u2",tipo:"include",rotulo:""},
+        {id:novoId(),de:"u4",para:"u1",tipo:"extend",rotulo:""}
+      ]
+    };
+  }else{
+    estado.diagramas.requisitos={
+      titulo:"Requisitos do Sistema de Biblioteca (exemplo)",
+      no:[
+        {id:"at1",tipo:"ator",x:80,y:160,texto:"Aluno"},
+        {id:"r1",tipo:"rf",x:280,y:60,texto:"RF01 — Empréstimo de livros"},
+        {id:"r2",tipo:"rf",x:280,y:190,texto:"RF02 — Reserva de livros"},
+        {id:"r3",tipo:"rf",x:280,y:320,texto:"RF03 — Renovação online"},
+        {id:"n1",tipo:"rnf",x:280,y:450,texto:"RNF01 — Interface responsiva"},
+        {id:"n2",tipo:"rnf",x:560,y:190,texto:"RNF02 — Segurança de dados"},
+        {id:"nt1",tipo:"nota",x:560,y:60,texto:"Prioridade:\nAlta"}
+      ],
+      seta:[
+        {id:novoId(),de:"at1",para:"r1",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"at1",para:"r2",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"at1",para:"r3",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"r1",para:"n1",tipo:"associacao",rotulo:""},
+        {id:novoId(),de:"r2",para:"n2",tipo:"associacao",rotulo:""}
+      ]
+    };
+  }
+  estado.selecionados.clear(); estado.setaSelecionada=null; estado.origemConexao=null;
+  renderCards(); render();
+  toast("Exemplo carregado (você pode editá-lo)","sucesso");
+}
+document.getElementById("btnExemplo").addEventListener("click",exemplo);
+
+/* =========================================================================
+   Inicialização
+   ========================================================================= */
+function init(){
+  carregarLocal();
+  temaAplicar(temaInicial());
+  renderCards();
+  renderConexoes();
+  render();
+  aplicarZoomVisual();
+  window.addEventListener("resize",aplicarZoomVisual);
+  window.addEventListener("keydown",ev=>{
+    if(ev.target.tagName==="INPUT"||ev.target.tagName==="TEXTAREA") return;
+    if(ev.key==="Delete"||ev.key==="Backspace"){
+      if(estado.selecionados.size||estado.setaSelecionada){ ev.preventDefault(); excluirSelecionados(); }
+    }else if(ev.key==="t"||ev.key==="T") definirFerramenta("selecionar");
+    else if(ev.key==="c"||ev.key==="C") definirFerramenta("conectar");
+  });
+}
+init();
+</script>
+</body>
+</html>
