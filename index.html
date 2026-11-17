@@ -1,0 +1,2027 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ModelaSistema — Engenharia de Requisitos</title>
+<meta name="description" content="ModelaSistema: ferramenta para documentar e modelar um sistema de software — casos de uso, diagramas de atividades, requisitos e roteiro do programa.">
+<!--
+  ModelaSistema — arquivo único (HTML + CSS + JS puro)
+  Biblioteca externa única via CDN: Mermaid (cdnjs) para diagramas de atividades.
+  Todo o texto da interface em português do Brasil.
+-->
+<style>
+/* ============================================================
+   ModelaSistema — Folha de estilos
+   Tema claro/escuro via variáveis CSS + [data-theme]
+   ============================================================ */
+:root{
+  --cor-primaria:#2563eb;
+  --cor-primaria-escura:#1d4ed8;
+  --cor-primaria-clara:#dbeafe;
+  --cor-acento:#7c3aed;
+  --cor-sucesso:#059669;
+  --cor-aviso:#d97706;
+  --cor-erro:#dc2626;
+  --cor-fundo:#f1f5f9;
+  --cor-superficie:#ffffff;
+  --cor-superficie-2:#f8fafc;
+  --cor-borda:#e2e8f0;
+  --cor-texto:#0f172a;
+  --cor-texto-suave:#475569;
+  --cor-texto-claro:#94a3b8;
+  --sombra:0 4px 24px rgba(15,23,42,.08);
+  --sombra-grande:0 12px 40px rgba(15,23,42,.14);
+  --raio:14px;
+  --raio-pequeno:9px;
+  --largura-barra:264px;
+  --fonte:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+  --fonte-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+[data-theme="dark"]{
+  --cor-primaria:#3b82f6;
+  --cor-primaria-escura:#60a5fa;
+  --cor-primaria-clara:#1e3a5f;
+  --cor-acento:#a78bfa;
+  --cor-fundo:#0b1220;
+  --cor-superficie:#111c30;
+  --cor-superficie-2:#0f1a2e;
+  --cor-borda:#1e2f4d;
+  --cor-texto:#e2e8f0;
+  --cor-texto-suave:#94a3b8;
+  --cor-texto-claro:#64748b;
+  --sombra:0 4px 24px rgba(0,0,0,.35);
+  --sombra-grande:0 12px 40px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;font-family:var(--fonte);background:var(--cor-fundo);color:var(--cor-texto);
+  line-height:1.55;font-size:15px;overflow-x:hidden;
+}
+a{color:var(--cor-primaria)}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--cor-texto)}
+:focus-visible{outline:3px solid var(--cor-primaria);outline-offset:2px;border-radius:6px}
+::selection{background:var(--cor-primaria-clara)}
+
+/* ---------- Barra superior ---------- */
+.topo{
+  position:fixed;top:0;left:0;right:0;height:62px;z-index:60;
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+  background:var(--cor-superficie);border-bottom:1px solid var(--cor-borda);
+}
+.topo .marca{display:flex;align-items:center;gap:11px;min-width:0}
+.topo .logo{
+  width:38px;height:38px;flex:0 0 38px;border-radius:11px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--cor-primaria),var(--cor-acento));color:#fff;font-weight:800;font-size:18px;
+}
+.topo .marca h1{font-size:18px;margin:0;white-space:nowrap}
+.topo .marca small{display:block;font-size:11px;color:var(--cor-texto-suave);font-weight:500;white-space:nowrap}
+.topo .acoes{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.completude{display:flex;align-items:center;gap:9px;background:var(--cor-superficie-2);border:1px solid var(--cor-borda);border-radius:999px;padding:6px 12px;font-size:12.5px;color:var(--cor-texto-suave)}
+.completude strong{color:var(--cor-texto)}
+.completude .barra{width:90px;height:7px;border-radius:99px;background:var(--cor-borda);overflow:hidden}
+.completude .barra i{display:block;height:100%;background:linear-gradient(90deg,var(--cor-primaria),var(--cor-acento));width:0%;transition:width .4s ease}
+
+/* ---------- Botões ---------- */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;border:1px solid var(--cor-borda);
+  background:var(--cor-superficie);color:var(--cor-texto);border-radius:var(--raio-pequeno);
+  padding:8px 14px;font-size:13.5px;font-weight:600;transition:transform .12s ease,box-shadow .15s ease,background .15s ease;
+}
+.btn:hover{box-shadow:var(--sombra);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-primario{background:var(--cor-primaria);border-color:var(--cor-primaria);color:#fff}
+.btn-primario:hover{background:var(--cor-primaria-escura)}
+.btn-perigo{background:#fff1f2;border-color:#fecdd3;color:var(--cor-erro)}
+[data-theme="dark"] .btn-perigo{background:#3f1d24;border-color:#7f1d2d}
+.btn-perigo:hover{background:#ffe4e6}
+[data-theme="dark"] .btn-perigo:hover{background:#4c222b}
+.btn-pequeno{padding:5px 10px;font-size:12.5px}
+.btn-icone{width:38px;height:38px;padding:0;justify-content:center;border-radius:50%;font-size:17px}
+.btn[disabled]{opacity:.5;cursor:not-allowed;transform:none}
+
+/* ---------- Barra lateral / abas ---------- */
+.barra-lateral{
+  position:fixed;top:62px;left:0;bottom:0;width:var(--largura-barra);z-index:50;
+  background:var(--cor-superficie);border-right:1px solid var(--cor-borda);
+  padding:18px 14px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;
+}
+.barra-lateral .rotulo{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cor-texto-claro);font-weight:700;margin:6px 10px 8px}
+.nav-item{
+  display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:1px solid transparent;
+  background:transparent;color:var(--cor-texto-suave);border-radius:11px;padding:11px 12px;font-size:14px;font-weight:600;
+}
+.nav-item:hover{background:var(--cor-superficie-2);color:var(--cor-texto)}
+.nav-item.ativo{background:var(--cor-primaria-clara);color:var(--cor-primaria);border-color:var(--cor-borda)}
+[data-theme="dark"] .nav-item.ativo{color:#93c5fd}
+.nav-item .numero{
+  width:27px;height:27px;flex:0 0 27px;border-radius:8px;display:grid;place-items:center;font-size:12.5px;font-weight:800;
+  background:var(--cor-superficie-2);border:1px solid var(--cor-borda);color:var(--cor-texto-suave);
+}
+.nav-item.ativo .numero{background:var(--cor-primaria);border-color:var(--cor-primaria);color:#fff}
+.nav-item .ok{margin-left:auto;color:var(--cor-sucesso);font-size:14px}
+.barra-lateral .rodape{margin-top:auto;font-size:12px;color:var(--cor-texto-claro);padding:12px 10px 4px;border-top:1px solid var(--cor-borda)}
+.barra-lateral .rodape .acoes-col{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.barra-lateral .rodape .btn{justify-content:flex-start;width:100%}
+
+/* ---------- Conteúdo principal ---------- */
+.conteudo{margin-left:var(--largura-barra);margin-top:62px;padding:26px 28px 70px;max-width:1180px}
+.secao{display:none}
+.secao.ativa{display:block;animation:entrar .35s ease}
+@keyframes entrar{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.cabecalho-secao{margin-bottom:20px}
+.cabecalho-secao h2{margin:0 0 6px;font-size:24px}
+.cabecalho-secao p{margin:0;color:var(--cor-texto-suave);max-width:720px}
+.passo-etiqueta{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--cor-primaria);background:var(--cor-primaria-clara);border-radius:99px;padding:4px 11px;margin-bottom:10px}
+
+/* ---------- Cartões e formulários ---------- */
+.cartao{background:var(--cor-superficie);border:1px solid var(--cor-borda);border-radius:var(--raio);box-shadow:var(--sombra);padding:20px;margin-bottom:18px}
+.cartao h3{margin:0 0 4px;font-size:16.5px}
+.cartao .sub{color:var(--cor-texto-suave);font-size:13.5px;margin:0 0 14px}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grade-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.campo{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.campo label{font-size:13px;font-weight:700;color:var(--cor-texto)}
+.campo .dica{font-size:12px;color:var(--cor-texto-claro)}
+.campo input,.campo select,.campo textarea{
+  border:1px solid var(--cor-borda);background:var(--cor-superficie-2);border-radius:var(--raio-pequeno);
+  padding:10px 12px;width:100%;transition:border-color .15s ease,box-shadow .15s ease;
+}
+.campo input:focus,.campo select:focus,.campo textarea:focus{outline:none;border-color:var(--cor-primaria);box-shadow:0 0 0 3px var(--cor-primaria-clara)}
+.campo textarea{min-height:84px;resize:vertical}
+.campo .erro{font-size:12.5px;color:var(--cor-erro);font-weight:600;display:none}
+.campo.invalido input,.campo.invalido textarea,.campo.invalido select{border-color:var(--cor-erro)}
+.campo.invalido .erro{display:block}
+.linha-botoes{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+.vazio{border:1.5px dashed var(--cor-borda);border-radius:var(--raio);padding:26px 18px;text-align:center;color:var(--cor-texto-suave);background:var(--cor-superficie-2)}
+.vazio strong{color:var(--cor-texto);display:block;margin-bottom:4px}
+
+/* ---------- Listas (atores, telas, nós) ---------- */
+.lista-itens{display:flex;flex-direction:column;gap:10px}
+.item-lista{display:flex;gap:12px;align-items:flex-start;background:var(--cor-superficie-2);border:1px solid var(--cor-borda);border-radius:var(--raio-pequeno);padding:12px 14px}
+.item-lista .conteudo-item{flex:1;min-width:0}
+.item-lista .titulo{font-weight:700}
+.item-lista .detalhe{font-size:13px;color:var(--cor-texto-suave);margin-top:2px;word-break:break-word}
+.item-lista .acoes-item{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;border-radius:99px;padding:3px 10px;background:var(--cor-primaria-clara);color:var(--cor-primaria)}
+.badge.cinza{background:var(--cor-superficie-2);color:var(--cor-texto-suave);border:1px solid var(--cor-borda)}
+.badge.verde{background:#d1fae5;color:#065f46}
+[data-theme="dark"] .badge.verde{background:#064e3b;color:#a7f3d0}
+.badge.amarelo{background:#fef3c7;color:#92400e}
+[data-theme="dark"] .badge.amarelo{background:#451a03;color:#fde68a}
+.badge.roxo{background:#ede9fe;color:#5b21b6}
+[data-theme="dark"] .badge.roxo{background:#3b0764;color:#ddd6fe}
+
+/* ---------- Cards de casos de uso ---------- */
+.grade-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.card-uc{background:var(--cor-superficie);border:1px solid var(--cor-borda);border-radius:var(--raio);box-shadow:var(--sombra);padding:18px;display:flex;flex-direction:column;gap:9px}
+.card-uc .topo-card{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.card-uc h4{margin:0;font-size:16px}
+.card-uc .descricao{color:var(--cor-texto-suave);font-size:13.5px;margin:0}
+.card-uc .meta{font-size:12.5px;color:var(--cor-texto-suave)}
+.card-uc .meta b{color:var(--cor-texto)}
+.card-uc ol{margin:4px 0 0;padding-left:22px;font-size:13px;color:var(--cor-texto-suave)}
+.card-uc .acoes-card{margin-top:auto;display:flex;gap:7px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--cor-borda)}
+
+/* ---------- Tabelas ---------- */
+.tabela-wrap{overflow-x:auto;border:1px solid var(--cor-borda);border-radius:var(--raio);background:var(--cor-superficie)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--cor-borda);vertical-align:top}
+th{background:var(--cor-superficie-2);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--cor-texto-suave)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--cor-superficie-2)}
+td .btn{margin:2px 2px 2px 0}
+
+/* ---------- Abas ---------- */
+.abas{display:flex;gap:6px;border-bottom:2px solid var(--cor-borda);margin-bottom:16px;flex-wrap:wrap}
+.aba{border:none;background:transparent;padding:10px 16px;font-weight:700;font-size:14px;color:var(--cor-texto-suave);border-bottom:3px solid transparent;margin-bottom:-2px}
+.aba.ativa{color:var(--cor-primaria);border-bottom-color:var(--cor-primaria)}
+.filtros{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.filtros .campo{margin-bottom:0}
+
+/* ---------- Diagramas ---------- */
+.diagrama-caixa{background:var(--cor-superficie-2);border:1px solid var(--cor-borda);border-radius:var(--raio);padding:14px;overflow:auto}
+.diagrama-caixa svg{max-width:100%;height:auto;display:block;margin:0 auto}
+.diagrama-caixa .mermaid{background:transparent}
+textarea.codigo{font-family:var(--fonte-mono);font-size:12.5px;min-height:220px;line-height:1.5}
+.seletor-modo{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.seletor-modo .btn.ativo{background:var(--cor-primario,#2563eb);background:var(--cor-primaria);color:#fff;border-color:var(--cor-primaria)}
+.no-editor{display:flex;flex-direction:column;gap:10px}
+.no-card{border:1px solid var(--cor-borda);border-radius:var(--raio-pequeno);background:var(--cor-superficie-2);padding:12px 14px}
+.no-card .no-topo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+.no-card .no-topo .ordem{font-size:12px;font-weight:800;color:var(--cor-texto-claro)}
+.no-card .grade-no{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.no-card .campo{margin-bottom:0}
+.no-card .campo label{font-size:12px}
+
+/* ---------- Modal ---------- */
+.modal-fundo{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100;display:none;align-items:flex-start;justify-content:center;padding:22px 14px;overflow-y:auto}
+.modal-fundo.aberto{display:flex}
+.modal{background:var(--cor-superficie);border-radius:16px;box-shadow:var(--sombra-grande);width:100%;max-width:680px;padding:24px;animation:entrar .25s ease}
+.modal h3{margin:0 0 4px;font-size:19px}
+.modal .sub{color:var(--cor-texto-suave);font-size:13.5px;margin:0 0 16px}
+.modal .fechar{float:right}
+.checks{display:flex;flex-wrap:wrap;gap:8px 16px}
+.checks label{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;cursor:pointer}
+.checks input{width:16px;height:16px;accent-color:var(--cor-primaria)}
+
+/* ---------- Toast ---------- */
+#toast{
+  position:fixed;bottom:20px;left:50%;transform:translate(-50%,20px);z-index:200;
+  background:var(--cor-texto);color:var(--cor-superficie);padding:11px 18px;border-radius:99px;
+  font-size:13.5px;font-weight:600;opacity:0;pointer-events:none;transition:all .3s ease;max-width:90vw;text-align:center;
+}
+#toast.visivel{opacity:1;transform:translate(-50%,0)}
+#toast.erro-toast{background:var(--cor-erro);color:#fff}
+
+/* ---------- Documento final ---------- */
+.doc{background:#fff;color:#0f172a;border-radius:var(--raio);box-shadow:var(--sombra-grande);padding:44px 48px;max-width:860px;margin:0 auto}
+[data-theme="dark"] .doc{background:#fff;color:#0f172a}
+.doc h1{font-size:30px;margin:0 0 6px}
+.doc h2{font-size:21px;margin:30px 0 10px;border-bottom:2px solid #2563eb;padding-bottom:6px}
+.doc h3{font-size:16px;margin:20px 0 8px}
+.doc p,.doc li{font-size:14px;color:#334155}
+.doc table{min-width:0}
+.doc th{background:#f1f5f9;color:#475569}
+.doc td,.doc th{border-color:#e2e8f0}
+.doc .capa{text-align:center;padding:36px 0 26px;border-bottom:3px double #2563eb;margin-bottom:24px}
+.doc .capa .sistema{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#2563eb;font-weight:800}
+.doc .capa .meta-capa{color:#64748b;font-size:13px;margin-top:10px}
+.doc .etiqueta-id{font-family:var(--fonte-mono);font-size:12px;background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:2px 8px;font-weight:700}
+.doc pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;overflow:auto;font-size:12px}
+.doc .diagrama-doc{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;overflow:auto;margin:10px 0}
+.doc .diagrama-doc svg{max-width:100%;height:auto}
+
+/* ---------- Responsivo ---------- */
+@media (max-width:960px){
+  .grade,.grade-3,.filtros,.no-card .grade-no{grid-template-columns:1fr}
+  .conteudo{padding:20px 16px 60px}
+  .doc{padding:28px 20px}
+}
+@media (max-width:860px){
+  .barra-lateral{
+    top:62px;left:0;right:0;bottom:auto;width:100%;flex-direction:row;overflow-x:auto;overflow-y:hidden;
+    padding:8px 10px;border-right:none;border-bottom:1px solid var(--cor-borda);gap:6px;
+  }
+  .barra-lateral .rotulo,.barra-lateral .rodape{display:none}
+  .nav-item{flex:0 0 auto;width:auto;padding:8px 10px;font-size:13px}
+  .nav-item .ok{display:none}
+  .conteudo{margin-left:0;margin-top:118px}
+  .topo .marca small{display:none}
+  .completude .barra{display:none}
+}
+@media (max-width:560px){
+  .topo{padding:0 10px;gap:8px}
+  .topo .marca h1{font-size:16px}
+  .btn .texto-esconde{display:none}
+  .completude{font-size:11.5px;padding:5px 9px}
+  .grade-cards{grid-template-columns:1fr}
+}
+
+/* ---------- Impressão: apenas o documento final ---------- */
+@media print{
+  @page{margin:16mm}
+  body{background:#fff}
+  .topo,.barra-lateral,.modal-fundo,#toast,.no-print,.cabecalho-secao,.acoes-doc{display:none !important}
+  .conteudo{margin:0;padding:0;max-width:none}
+  .secao{display:none !important}
+  .secao.ativa{display:block !important}
+  #secao-documento{display:block !important}
+  .doc{box-shadow:none;border:none;max-width:none;padding:0}
+  .cartao{box-shadow:none;border:none;padding:0;margin:0}
+  a{color:#0f172a;text-decoration:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= BARRA SUPERIOR ================= -->
+<header class="topo">
+  <div class="marca">
+    <div class="logo" aria-hidden="true">M</div>
+    <div>
+      <h1>ModelaSistema</h1>
+      <small>Engenharia de requisitos</small>
+    </div>
+  </div>
+  <div class="acoes">
+    <div class="completude" id="completude" title="Progresso do projeto">
+      <strong id="completudeTexto">0 de 5 seções</strong>
+      <span class="barra" aria-hidden="true"><i id="completudeBarra"></i></span>
+    </div>
+    <button class="btn btn-pequeno" id="btnTema" type="button" aria-label="Alternar tema claro e escuro" title="Alternar tema">🌙</button>
+    <button class="btn btn-pequeno" id="btnExemploTopo" type="button" title="Preencher com projeto de demonstração">✨ <span class="texto-esconde">Exemplo</span></button>
+    <button class="btn btn-pequeno" id="btnExportarTopo" type="button" title="Exportar projeto como JSON">⬇ <span class="texto-esconde">Exportar</span></button>
+    <button class="btn btn-pequeno" id="btnImportarTopo" type="button" title="Importar projeto de um arquivo JSON">⬆ <span class="texto-esconde">Importar</span></button>
+    <input type="file" id="arquivoImportar" accept=".json,application/json" hidden aria-label="Arquivo JSON do projeto">
+  </div>
+</header>
+
+<!-- ================= BARRA LATERAL / ABAS MOBILE ================= -->
+<nav class="barra-lateral" aria-label="Seções do projeto">
+  <div class="rotulo">Modelagem</div>
+  <button class="nav-item ativo" type="button" data-secao="projeto"><span class="numero">0</span> Projeto <span class="ok" data-ok="projeto" hidden>✓</span></button>
+  <button class="nav-item" type="button" data-secao="casos"><span class="numero">1</span> Casos de Uso <span class="ok" data-ok="casos" hidden>✓</span></button>
+  <button class="nav-item" type="button" data-secao="atividades"><span class="numero">2</span> Diagrama de Atividades <span class="ok" data-ok="atividades" hidden>✓</span></button>
+  <button class="nav-item" type="button" data-secao="requisitos"><span class="numero">3</span> Requisitos <span class="ok" data-ok="requisitos" hidden>✓</span></button>
+  <button class="nav-item" type="button" data-secao="roteiro"><span class="numero">4</span> Roteiro do Programa <span class="ok" data-ok="roteiro" hidden>✓</span></button>
+  <button class="nav-item" type="button" data-secao="documento"><span class="numero">5</span> Documento Final <span class="ok" data-ok="documento" hidden>✓</span></button>
+  <div class="rodape">
+    <div id="avisoStorage">Os dados são salvos automaticamente neste navegador.</div>
+    <div class="acoes-col">
+      <button class="btn btn-pequeno" id="btnExemplo" type="button">✨ Carregar exemplo</button>
+      <button class="btn btn-pequeno" id="btnExportar" type="button">⬇ Exportar projeto (JSON)</button>
+      <button class="btn btn-pequeno" id="btnImportar" type="button">⬆ Importar projeto (JSON)</button>
+      <button class="btn btn-pequeno btn-perigo" id="btnLimpar" type="button">🗑 Limpar projeto</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ================= CONTEÚDO ================= -->
+<main class="conteudo">
+
+  <!-- ===== 0. PROJETO ===== -->
+  <section class="secao ativa" id="secao-projeto" aria-labelledby="titulo-projeto">
+    <div class="cabecalho-secao">
+      <span class="passo-etiqueta">Passo 0 · Visão geral</span>
+      <h2 id="titulo-projeto">Projeto</h2>
+      <p>Descreva o sistema. Estes dados alimentam todas as outras seções — por exemplo, os atores cadastrados aqui aparecem como opções nos casos de uso.</p>
+    </div>
+
+    <div class="cartao">
+      <h3>Identificação do sistema</h3>
+      <p class="sub">Preencha ao menos o nome e a descrição para o projeto ser considerado iniciado.</p>
+      <form id="formProjeto" novalidate>
+        <div class="campo" id="campoNome">
+          <label for="nomeSistema">Nome do sistema *</label>
+          <input type="text" id="nomeSistema" placeholder="Ex.: Sistema de Biblioteca" autocomplete="off">
+          <span class="erro">Informe o nome do sistema.</span>
+        </div>
+        <div class="campo" id="campoDescricao">
+          <label for="descricaoSistema">Descrição *</label>
+          <textarea id="descricaoSistema" placeholder="O que o sistema faz? Quais problemas ele resolve?"></textarea>
+          <span class="erro">Informe a descrição do sistema.</span>
+        </div>
+        <div class="grade">
+          <div class="campo">
+            <label for="objetivoSistema">Objetivo</label>
+            <textarea id="objetivoSistema" placeholder="Qual é o objetivo principal do sistema?"></textarea>
+          </div>
+          <div class="campo">
+            <label for="publicoSistema">Público-alvo</label>
+            <textarea id="publicoSistema" placeholder="Quem vai usar o sistema?"></textarea>
+          </div>
+        </div>
+        <div class="linha-botoes">
+          <button class="btn btn-primario" type="submit">💾 Salvar projeto</button>
+          <span class="dica" style="align-self:center;font-size:12.5px;color:var(--cor-texto-claro)">O salvamento também é automático ao digitar.</span>
+        </div>
+      </form>
+    </div>
+
+    <div class="cartao">
+      <h3>Atores do sistema</h3>
+      <p class="sub">Atores são papéis que interagem com o sistema (pessoas, outros sistemas ou organizações).</p>
+      <form id="formAtor" novalidate>
+        <div class="grade">
+          <div class="campo" id="campoAtorNome">
+            <label for="atorNome">Nome do ator *</label>
+            <input type="text" id="atorNome" placeholder="Ex.: Bibliotecário" autocomplete="off">
+            <span class="erro">Informe o nome do ator.</span>
+          </div>
+          <div class="campo">
+            <label for="atorDescricao">Descrição</label>
+            <input type="text" id="atorDescricao" placeholder="Ex.: Responsável pelo acervo e pelos empréstimos" autocomplete="off">
+          </div>
+        </div>
+        <div class="linha-botoes">
+          <button class="btn btn-primario" type="submit">+ Adicionar ator</button>
+        </div>
+      </form>
+      <div id="listaAtores" class="lista-itens" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <!-- ===== 1. CASOS DE USO ===== -->
+  <section class="secao" id="secao-casos" aria-labelledby="titulo-casos">
+    <div class="cabecalho-secao">
+      <span class="passo-etiqueta">Passo 1 · Funcionalidades</span>
+      <h2 id="titulo-casos">Casos de Uso</h2>
+      <p>Cadastre os casos de uso do sistema. O diagrama abaixo é gerado automaticamente a partir dos atores e casos de uso cadastrados.</p>
+    </div>
+
+    <div class="cartao">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <h3>Diagrama de casos de uso</h3>
+          <p class="sub" style="margin-bottom:0">Gerado automaticamente em SVG. Atores à esquerda, casos de uso dentro da fronteira do sistema.</p>
+        </div>
+        <div class="linha-botoes" style="margin:0">
+          <button class="btn btn-pequeno" id="btnBaixarDiagramaUC" type="button">⬇ Baixar SVG</button>
+        </div>
+      </div>
+      <div class="diagrama-caixa" id="diagramaUC" style="margin-top:14px" role="img" aria-label="Diagrama de casos de uso"></div>
+    </div>
+
+    <div class="cartao">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <h3>Casos de uso cadastrados</h3>
+          <p class="sub" style="margin-bottom:0" id="resumoUC">Nenhum caso de uso ainda.</p>
+        </div>
+        <div class="linha-botoes" style="margin:0">
+          <button class="btn btn-pequeno" id="btnVerUC" type="button" aria-pressed="false">📋 Ver como tabela</button>
+          <button class="btn btn-primario btn-pequeno" id="btnNovoUC" type="button">+ Novo caso de uso</button>
+        </div>
+      </div>
+      <div id="listaUC" class="grade-cards" style="margin-top:16px"></div>
+      <div id="tabelaUC" class="tabela-wrap" style="margin-top:16px;display:none"></div>
+    </div>
+  </section>
+
+  <!-- ===== 2. DIAGRAMA DE ATIVIDADES ===== -->
+  <section class="secao" id="secao-atividades" aria-labelledby="titulo-atividades">
+    <div class="cabecalho-secao">
+      <span class="passo-etiqueta">Passo 2 · Fluxos detalhados</span>
+      <h2 id="titulo-atividades">Diagrama de Atividades</h2>
+      <p>Escolha um caso de uso e detalhe seu fluxo com nós de início, ação, decisão, fork/join e fim — ou escreva o diagrama em código Mermaid.</p>
+    </div>
+
+    <div class="cartao">
+      <div class="campo">
+        <label for="selCasoUsoAtividade">Caso de uso a detalhar</label>
+        <select id="selCasoUsoAtividade"></select>
+        <span class="dica">Cadastre casos de uso na seção anterior para detalhá-los aqui.</span>
+      </div>
+      <div class="linha-botoes">
+        <button class="btn" id="btnRascunho" type="button">⚡ Gerar rascunho a partir do fluxo principal</button>
+        <button class="btn" id="btnExportarSVG" type="button">⬇ Exportar SVG</button>
+        <button class="btn" id="btnExportarPNG" type="button">⬇ Exportar PNG</button>
+      </div>
+    </div>
+
+    <div class="cartao">
+      <h3>Editor do diagrama</h3>
+      <p class="sub">Opção A: editor visual em lista. Opção B: código Mermaid (flowchart TD) com renderização ao vivo.</p>
+      <div class="seletor-modo" role="group" aria-label="Modo do editor">
+        <button class="btn btn-pequeno ativo" id="modoVisual" type="button" aria-pressed="true">🧩 Editor visual</button>
+        <button class="btn btn-pequeno" id="modoMermaid" type="button" aria-pressed="false">📝 Código Mermaid</button>
+      </div>
+
+      <!-- Opção A: editor visual -->
+      <div id="painelVisual">
+        <div class="linha-botoes" style="margin-bottom:14px">
+          <button class="btn btn-pequeno" type="button" data-add-no="inicio">+ Início</button>
+          <button class="btn btn-pequeno" type="button" data-add-no="acao">+ Ação</button>
+          <button class="btn btn-pequeno" type="button" data-add-no="decisao">+ Decisão</button>
+          <button class="btn btn-pequeno" type="button" data-add-no="fork">+ Fork (paralelismo)</button>
+          <button class="btn btn-pequeno" type="button" data-add-no="join">+ Join</button>
+          <button class="btn btn-pequeno" type="button" data-add-no="fim">+ Fim</button>
+        </div>
+        <div id="listaNos" class="no-editor"></div>
+      </div>
+
+      <!-- Opção B: Mermaid -->
+      <div id="painelMermaid" hidden>
+        <div class="campo">
+          <label for="codigoMermaid">Código Mermaid (flowchart TD)</label>
+          <textarea id="codigoMermaid" class="codigo" spellcheck="false" placeholder="flowchart TD&#10;    A([Início]) --> B[Ação]"></textarea>
+          <span class="dica">A pré-visualização é atualizada automaticamente ao digitar.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cartao">
+      <h3>Pré-visualização</h3>
+      <p class="sub">Renderizada em tempo real a partir do editor.</p>
+      <div class="diagrama-caixa" id="previewAtividades" role="img" aria-label="Pré-visualização do diagrama de atividades"></div>
+      <div id="erroMermaid" class="erro" style="display:none;color:var(--cor-erro);font-size:13px;margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ===== 3. REQUISITOS ===== -->
+  <section class="secao" id="secao-requisitos" aria-labelledby="titulo-requisitos">
+    <div class="cabecalho-secao">
+      <span class="passo-etiqueta">Passo 3 · O que o sistema deve fazer</span>
+      <h2 id="titulo-requisitos">Requisitos</h2>
+      <p>Requisitos funcionais (RF) descrevem o que o sistema faz; requisitos não funcionais (RNF) descrevem qualidades como desempenho, segurança e usabilidade.</p>
+    </div>
+
+    <div class="cartao">
+      <div class="abas" role="tablist" aria-label="Tipo de requisito">
+        <button class="aba ativa" id="abaRF" type="button" role="tab" aria-selected="true">Funcionais (RF)</button>
+        <button class="aba" id="abaRNF" type="button" role="tab" aria-selected="false">Não Funcionais (RNF)</button>
+      </div>
+
+      <div class="filtros">
+        <div class="campo">
+          <label for="filtroBusca">Buscar</label>
+          <input type="search" id="filtroBusca" placeholder="Título ou descrição..." autocomplete="off">
+        </div>
+        <div class="campo">
+          <label for="filtroPrioridade">Prioridade</label>
+          <select id="filtroPrioridade">
+            <option value="">Todas</option>
+            <option>Essencial</option><option>Importante</option><option>Desejável</option>
+          </select>
+        </div>
+        <div class="campo" id="campoFiltroCategoria">
+          <label for="filtroCategoria">Categoria (RNF)</label>
+          <select id="filtroCategoria">
+            <option value="">Todas</option>
+            <option>Desempenho</option><option>Segurança</option><option>Usabilidade</option>
+            <option>Confiabilidade</option><option>Disponibilidade</option><option>Manutenibilidade</option>
+            <option>Portabilidade</option><option>Legal/Compliance</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="filtroStatus">Status</label>
+          <select id="filtroStatus">
+            <option value="">Todos</option>
+            <option>Proposto</option><option>Aprovado</option><option>Implementado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="linha-botoes" style="margin-bottom:14px">
+        <button class="btn btn-primario" id="btnNovoRequisito" type="button">+ Novo requisito</button>
+        <span id="resumoReq" style="align-self:center;font-size:13px;color:var(--cor-texto-suave)"></span>
+      </div>
+
+      <div id="tabelaRequisitos" class="tabela-wrap"></div>
+    </div>
+
+    <div class="cartao">
+      <h3>Matriz de rastreabilidade</h3>
+      <p class="sub">Cruza casos de uso (linhas) com requisitos funcionais (colunas). ✓ indica que o requisito está relacionado ao caso de uso.</p>
+      <div id="matriz" class="tabela-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ===== 4. ROTEIRO DO PROGRAMA ===== -->
+  <section class="secao" id="secao-roteiro" aria-labelledby="titulo-roteiro">
+    <div class="cabecalho-secao">
+      <span class="passo-etiqueta">Passo 4 · Telas e navegação</span>
+      <h2 id="titulo-roteiro">Roteiro do Programa</h2>
+      <p>Liste as telas/etapas do programa na ordem em que o usuário as percorre e descreva a narrativa completa de uso.</p>
+    </div>
+
+    <div class="cartao">
+      <h3>Fluxo de navegação entre telas</h3>
+      <p class="sub">Gerado automaticamente a partir da lista de telas e da campo "próxima tela" de cada uma.</p>
+      <div class="diagrama-caixa" id="fluxoTelas" role="img" aria-label="Fluxo de navegação entre telas"></div>
+    </div>
+
+    <div class="cartao">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <h3>Telas / etapas do programa</h3>
+          <p class="sub" style="margin-bottom:0">A ordem da lista é a ordem de navegação sugerida.</p>
+        </div>
+        <button class="btn btn-primario btn-pequeno" id="btnNovaTela" type="button">+ Nova tela</button>
+      </div>
+      <div id="listaTelas" class="lista-itens" style="margin-top:16px"></div>
+    </div>
+
+    <div class="cartao">
+      <h3>Narrativa do programa</h3>
+      <p class="sub">Texto livre descrevendo o uso do sistema do começo ao fim, como uma história de uso.</p>
+      <div class="campo">
+        <label for="narrativa">Narrativa</label>
+        <textarea id="narrativa" style="min-height:150px" placeholder="Ex.: O usuário abre o sistema, faz login, consulta o catálogo, seleciona um livro e confirma o empréstimo..."></textarea>
+      </div>
+      <div class="linha-botoes">
+        <button class="btn btn-primario" id="btnSalvarNarrativa" type="button">💾 Salvar narrativa</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 5. DOCUMENTO FINAL ===== -->
+  <section class="secao" id="secao-documento" aria-labelledby="titulo-documento">
+    <div class="cabecalho-secao no-print">
+      <span class="passo-etiqueta">Passo 5 · Entrega</span>
+      <h2 id="titulo-documento">Documento Final</h2>
+      <p>Pré-visualização consolidada de todo o projeto. Imprima ou salve em PDF, ou exporte em JSON/Markdown.</p>
+    </div>
+    <div class="acoes-doc no-print" style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px">
+      <button class="btn btn-primario" id="btnImprimir" type="button">🖨 Imprimir / Salvar PDF</button>
+      <button class="btn" id="btnExportarJSONDoc" type="button">⬇ Exportar JSON</button>
+      <button class="btn" id="btnExportarMD" type="button">⬇ Exportar Markdown</button>
+      <button class="btn" id="btnAtualizarDoc" type="button">↻ Atualizar pré-visualização</button>
+    </div>
+    <div class="cartao" style="background:transparent;border:none;box-shadow:none;padding:0">
+      <div class="doc" id="docPreview"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ================= MODAL: CASO DE USO ================= -->
+<div class="modal-fundo" id="modalUC" role="dialog" aria-modal="true" aria-labelledby="tituloModalUC">
+  <div class="modal">
+    <button class="btn btn-pequeno fechar" type="button" data-fechar="modalUC" aria-label="Fechar">✕</button>
+    <h3 id="tituloModalUC">Novo caso de uso</h3>
+    <p class="sub">O ID é gerado automaticamente (UC01, UC02...).</p>
+    <form id="formUC" novalidate>
+      <input type="hidden" id="ucId">
+      <div class="campo" id="campoUcNome">
+        <label for="ucNome">Nome do caso de uso *</label>
+        <input type="text" id="ucNome" placeholder="Ex.: Emprestar livro" autocomplete="off">
+        <span class="erro">Informe o nome do caso de uso.</span>
+      </div>
+      <div class="grade">
+        <div class="campo" id="campoUcAtor">
+          <label for="ucAtorPrincipal">Ator principal *</label>
+          <select id="ucAtorPrincipal"></select>
+          <span class="erro">Selecione o ator principal.</span>
+        </div>
+        <div class="campo">
+          <label>Atores secundários</label>
+          <div class="checks" id="ucAtoresSecundarios"></div>
+          <span class="dica">Cadastre atores na seção Projeto.</span>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="ucDescricao">Descrição</label>
+        <textarea id="ucDescricao" placeholder="O que este caso de uso realiza?"></textarea>
+      </div>
+      <div class="grade">
+        <div class="campo">
+          <label for="ucPre">Pré-condições</label>
+          <textarea id="ucPre" placeholder="O que precisa ser verdade antes?"></textarea>
+        </div>
+        <div class="campo">
+          <label for="ucPos">Pós-condições</label>
+          <textarea id="ucPos" placeholder="O que é verdade depois da execução?"></textarea>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="ucFluxo">Fluxo principal (um passo por linha)</label>
+        <textarea id="ucFluxo" style="min-height:130px" placeholder="1. O ator informa...&#10;2. O sistema verifica..."></textarea>
+        <span class="dica">Cada linha vira um passo numerado. A numeração é automática.</span>
+      </div>
+      <div class="grade">
+        <div class="campo">
+          <label for="ucAlt">Fluxos alternativos</label>
+          <textarea id="ucAlt" placeholder="Caminhos alternativos de sucesso..."></textarea>
+        </div>
+        <div class="campo">
+          <label for="ucExc">Fluxos de exceção</label>
+          <textarea id="ucExc" placeholder="Erros e situações anormais..."></textarea>
+        </div>
+      </div>
+      <div class="campo">
+        <label>Requisitos relacionados (RF)</label>
+        <div class="checks" id="ucRequisitos"></div>
+      </div>
+      <div class="linha-botoes">
+        <button class="btn btn-primario" type="submit">💾 Salvar caso de uso</button>
+        <button class="btn" type="button" data-fechar="modalUC">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL: REQUISITO ================= -->
+<div class="modal-fundo" id="modalReq" role="dialog" aria-modal="true" aria-labelledby="tituloModalReq">
+  <div class="modal">
+    <button class="btn btn-pequeno fechar" type="button" data-fechar="modalReq" aria-label="Fechar">✕</button>
+    <h3 id="tituloModalReq">Novo requisito</h3>
+    <p class="sub">O ID é gerado automaticamente (RF01 / RNF01...).</p>
+    <form id="formReq" novalidate>
+      <input type="hidden" id="reqId">
+      <input type="hidden" id="reqTipo" value="RF">
+      <div class="campo" id="campoReqTitulo">
+        <label for="reqTitulo">Título *</label>
+        <input type="text" id="reqTitulo" placeholder="Ex.: O sistema deve permitir o empréstimo de livros" autocomplete="off">
+        <span class="erro">Informe o título do requisito.</span>
+      </div>
+      <div class="campo">
+        <label for="reqDescricao">Descrição</label>
+        <textarea id="reqDescricao" placeholder="Detalhe do requisito..."></textarea>
+      </div>
+      <div class="grade-3">
+        <div class="campo">
+          <label for="reqPrioridade">Prioridade</label>
+          <select id="reqPrioridade"><option>Essencial</option><option>Importante</option><option>Desejável</option></select>
+        </div>
+        <div class="campo">
+          <label for="reqStatus">Status</label>
+          <select id="reqStatus"><option>Proposto</option><option>Aprovado</option><option>Implementado</option></select>
+        </div>
+        <div class="campo" id="campoReqCategoria">
+          <label for="reqCategoria">Categoria (RNF)</label>
+          <select id="reqCategoria">
+            <option>Desempenho</option><option>Segurança</option><option>Usabilidade</option>
+            <option>Confiabilidade</option><option>Disponibilidade</option><option>Manutenibilidade</option>
+            <option>Portabilidade</option><option>Legal/Compliance</option>
+          </select>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="reqCasoUso">Caso de uso relacionado</label>
+        <select id="reqCasoUso"><option value="">— Nenhum —</option></select>
+      </div>
+      <div class="linha-botoes">
+        <button class="btn btn-primario" type="submit">💾 Salvar requisito</button>
+        <button class="btn" type="button" data-fechar="modalReq">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL: TELA ================= -->
+<div class="modal-fundo" id="modalTela" role="dialog" aria-modal="true" aria-labelledby="tituloModalTela">
+  <div class="modal">
+    <button class="btn btn-pequeno fechar" type="button" data-fechar="modalTela" aria-label="Fechar">✕</button>
+    <h3 id="tituloModalTela">Nova tela</h3>
+    <p class="sub">Descreva a tela/etapa e para onde o usuário vai em seguida.</p>
+    <form id="formTela" novalidate>
+      <input type="hidden" id="telaId">
+      <div class="campo" id="campoTelaNome">
+        <label for="telaNome">Nome da tela *</label>
+        <input type="text" id="telaNome" placeholder="Ex.: Tela de login" autocomplete="off">
+        <span class="erro">Informe o nome da tela.</span>
+      </div>
+      <div class="campo">
+        <label for="telaObjetivo">Objetivo</label>
+        <textarea id="telaObjetivo" placeholder="O que o usuário consegue fazer nesta tela?"></textarea>
+      </div>
+      <div class="grade">
+        <div class="campo">
+          <label for="telaAtor">Ator</label>
+          <select id="telaAtor"></select>
+        </div>
+        <div class="campo">
+          <label for="telaProxima">Próxima tela (navegação)</label>
+          <select id="telaProxima"><option value="">— Fim —</option></select>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="telaEntradas">Entradas do usuário</label>
+        <textarea id="telaEntradas" placeholder="Campos, botões e ações disponíveis..."></textarea>
+      </div>
+      <div class="campo">
+        <label for="telaRegras">Regras de negócio</label>
+        <textarea id="telaRegras" placeholder="Validações e regras aplicadas nesta tela..."></textarea>
+      </div>
+      <div class="campo">
+        <label for="telaSaidas">Saídas / mensagens</label>
+        <textarea id="telaSaidas" placeholder="Mensagens exibidas e resultados..."></textarea>
+      </div>
+      <div class="linha-botoes">
+        <button class="btn btn-primario" type="submit">💾 Salvar tela</button>
+        <button class="btn" type="button" data-fechar="modalTela">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- Mermaid via CDN (única biblioteca externa permitida) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>
+/* ============================================================
+   ModelaSistema — Lógica da aplicação (JavaScript puro)
+   Estado centralizado em `projeto`, com renderização por seção.
+   ============================================================ */
+"use strict";
+
+/* ---------- Estado central do projeto ---------- */
+const CHAVE_STORAGE = "modelasistema-projeto-v1";
+let projeto = projetoVazio();
+let secaoAtual = "projeto";
+let abaRequisito = "RF";           // aba ativa: RF ou RNF
+let modoEditor = "visual";         // editor de atividades: visual ou mermaid
+let verUCTabela = false;           // visualização de casos de uso: cards ou tabela
+let ultimoSVGAtividades = "";      // SVG renderizado (para exportar)
+let contadorMermaid = 0;           // contador p/ ids únicos do Mermaid
+
+function projetoVazio(){
+  return {
+    nome: "", descricao: "", objetivo: "", publicoAlvo: "",
+    atores: [],        // {id, nome, descricao}
+    casosUso: [],      // {id, nome, atorPrincipal, atoresSecundarios[], descricao, preCondicoes, posCondicoes, fluxoPrincipal[], fluxosAlternativos, fluxosExcecao, requisitosRelacionados[]}
+    requisitos: [],    // {id, tipo, titulo, descricao, prioridade, status, casoUsoRelacionado, categoria}
+    telas: [],         // {id, nome, objetivo, ator, entradas, regrasNegocio, saidas, proximaTela}
+    narrativa: "",
+    diagramas: {}      // { ucId: { modo, nos:[{id,tipo,texto,simTexto,naoTexto,simDestino,naoDestino,proximo}], mermaidCode } }
+  };
+}
+
+/* ---------- Utilitários ---------- */
+function $(sel){ return document.querySelector(sel); }
+function $$(sel){ return Array.from(document.querySelectorAll(sel)); }
+function esc(texto){
+  return String(texto ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function uid(prefixo){ return (prefixo || "id") + "-" + Date.now().toString(36) + "-" + Math.floor(Math.random()*1e6).toString(36); }
+function linhasParaLista(texto){
+  return String(texto || "").split("\n").map(s => s.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean);
+}
+function listaParaLinhas(lista){ return (lista || []).map((s,i) => (i+1) + ". " + s).join("\n"); }
+function proximoId(lista, prefixo){
+  let maior = 0;
+  lista.forEach(item => { const m = String(item.id || "").match(new RegExp("^" + prefixo + "(\\d+)$")); if(m) maior = Math.max(maior, parseInt(m[1],10)); });
+  return prefixo + String(maior + 1).padStart(2, "0");
+}
+function nomeArquivo(texto, ext){
+  const base = (texto || "modelasistema").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").replace(/^-+|-+$/g,"").toLowerCase();
+  return (base || "modelasistema") + ext;
+}
+function baixarArquivo(conteudo, nome, tipo){
+  const blob = new Blob([conteudo], {type: tipo || "text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+let timerToast;
+function toast(mensagem, ehErro){
+  const el = $("#toast");
+  el.textContent = mensagem;
+  el.className = ehErro ? "erro-toast visivel" : "visivel";
+  clearTimeout(timerToast);
+  timerToast = setTimeout(() => { el.className = ""; }, 3200);
+}
+
+/* ---------- Persistência (localStorage com fallback) ---------- */
+let storageOK = true;
+function salvar(){
+  try{
+    localStorage.setItem(CHAVE_STORAGE, JSON.stringify(projeto));
+    storageOK = true;
+  }catch(e){
+    // Storage indisponível (modo privado, quota, etc.): segue só em memória.
+    if(storageOK){ toast("⚠ Armazenamento local indisponível — os dados ficam apenas na memória desta sessão.", true); }
+    storageOK = false;
+  }
+  atualizarAvisoStorage();
+  atualizarCompletude();
+}
+function carregar(){
+  try{
+    const bruto = localStorage.getItem(CHAVE_STORAGE);
+    if(bruto){
+      const dados = JSON.parse(bruto);
+      projeto = Object.assign(projetoVazio(), dados);
+    }
+  }catch(e){
+    storageOK = false;
+    toast("⚠ Não foi possível ler os dados salvos. Começando com um projeto vazio.", true);
+  }
+  atualizarAvisoStorage();
+}
+function atualizarAvisoStorage(){
+  const el = $("#avisoStorage");
+  if(el) el.textContent = storageOK
+    ? "Os dados são salvos automaticamente neste navegador."
+    : "⚠ Armazenamento indisponível: dados apenas na memória da sessão.";
+}
+
+/* ---------- Tema claro/escuro ---------- */
+function aplicarTema(tema){
+  document.documentElement.setAttribute("data-theme", tema);
+  $("#btnTema").textContent = tema === "dark" ? "☀️" : "🌙";
+  try{ localStorage.setItem("modelasistema-tema", tema); }catch(e){}
+}
+function temaInicial(){
+  try{
+    const salvo = localStorage.getItem("modelasistema-tema");
+    if(salvo) return salvo;
+  }catch(e){}
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+/* ---------- Navegação entre seções ---------- */
+function mostrarSecao(id){
+  secaoAtual = id;
+  $$(".nav-item").forEach(b => b.classList.toggle("ativo", b.dataset.secao === id));
+  $$(".secao").forEach(s => s.classList.toggle("ativa", s.id === "secao-" + id));
+  if(id === "documento") renderDocumento();
+  if(id === "atividades") renderPreviewAtividades();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+/* ---------- Indicador de completude (5 seções) ---------- */
+function secoesPreenchidas(){
+  return {
+    projeto: Boolean(projeto.nome.trim() && projeto.descricao.trim()),
+    casos: projeto.casosUso.length > 0,
+    atividades: Object.values(projeto.diagramas || {}).some(d => (d.nos && d.nos.length) || (d.mermaidCode && d.mermaidCode.trim())),
+    requisitos: projeto.requisitos.length > 0,
+    roteiro: projeto.telas.length > 0 || Boolean(projeto.narrativa.trim())
+  };
+}
+function atualizarCompletude(){
+  const s = secoesPreenchidas();
+  const total = Object.values(s).filter(Boolean).length;
+  $("#completudeTexto").textContent = total + " de 5 seções";
+  $("#completudeBarra").style.width = (total / 5 * 100) + "%";
+  $$(".nav-item .ok").forEach(el => { el.hidden = !s[el.dataset.ok]; });
+}
+
+/* ============================================================
+   SEÇÃO 0 — PROJETO E ATORES
+   ============================================================ */
+function renderProjeto(){
+  $("#nomeSistema").value = projeto.nome || "";
+  $("#descricaoSistema").value = projeto.descricao || "";
+  $("#objetivoSistema").value = projeto.objetivo || "";
+  $("#publicoSistema").value = projeto.publicoAlvo || "";
+  renderAtores();
+}
+function lerProjetoDoForm(){
+  projeto.nome = $("#nomeSistema").value.trim();
+  projeto.descricao = $("#descricaoSistema").value.trim();
+  projeto.objetivo = $("#objetivoSistema").value.trim();
+  projeto.publicoAlvo = $("#publicoSistema").value.trim();
+}
+function renderAtores(){
+  const caixa = $("#listaAtores");
+  if(!projeto.atores.length){
+    caixa.innerHTML = '<div class="vazio"><strong>Nenhum ator cadastrado</strong>Adicione atores para usá-los nos casos de uso e nas telas.</div>';
+    return;
+  }
+  caixa.innerHTML = projeto.atores.map(a => `
+    <div class="item-lista">
+      <div class="conteudo-item">
+        <div class="titulo">${esc(a.nome)}</div>
+        ${a.descricao ? `<div class="detalhe">${esc(a.descricao)}</div>` : ""}
+      </div>
+      <div class="acoes-item">
+        <button class="btn btn-pequeno" type="button" data-editar-ator="${a.id}">Editar</button>
+        <button class="btn btn-pequeno btn-perigo" type="button" data-excluir-ator="${a.id}">Excluir</button>
+      </div>
+    </div>`).join("");
+}
+function salvarAtor(e){
+  e.preventDefault();
+  const nome = $("#atorNome").value.trim();
+  const descricao = $("#atorDescricao").value.trim();
+  const editando = $("#formAtor").dataset.editando;
+  if(!nome){
+    $("#campoAtorNome").classList.add("invalido");
+    $("#atorNome").focus();
+    toast("Informe o nome do ator.", true);
+    return;
+  }
+  $("#campoAtorNome").classList.remove("invalido");
+  if(editando){
+    const ator = projeto.atores.find(a => a.id === editando);
+    if(ator){ ator.nome = nome; ator.descricao = descricao; }
+    toast("Ator atualizado.");
+  }else{
+    projeto.atores.push({id: uid("ator"), nome, descricao});
+    toast("Ator adicionado.");
+  }
+  $("#formAtor").reset();
+  delete $("#formAtor").dataset.editando;
+  salvar(); renderAtores(); renderSeletoresDependentes();
+}
+function editarAtor(id){
+  const ator = projeto.atores.find(a => a.id === id);
+  if(!ator) return;
+  $("#atorNome").value = ator.nome;
+  $("#atorDescricao").value = ator.descricao;
+  $("#formAtor").dataset.editando = id;
+  $("#atorNome").focus();
+  toast("Editando ator — altere e salve.");
+}
+function excluirAtor(id){
+  const ator = projeto.atores.find(a => a.id === id);
+  if(!ator) return;
+  if(!confirm(`Excluir o ator "${ator.nome}"? Casos de uso que o referenciam perderão essa referência.`)) return;
+  projeto.atores = projeto.atores.filter(a => a.id !== id);
+  projeto.casosUso.forEach(uc => {
+    if(uc.atorPrincipal === ator.nome) uc.atorPrincipal = "";
+    uc.atoresSecundarios = (uc.atoresSecundarios || []).filter(n => n !== ator.nome);
+  });
+  projeto.telas.forEach(t => { if(t.ator === ator.nome) t.ator = ""; });
+  salvar(); renderAtores(); renderCasosUso(); renderTelas(); renderSeletoresDependentes();
+  toast("Ator excluído.");
+}
+
+/* ============================================================
+   SEÇÃO 1 — CASOS DE USO
+   ============================================================ */
+function renderCasosUso(){
+  const lista = $("#listaUC");
+  const tabela = $("#tabelaUC");
+  $("#resumoUC").textContent = projeto.casosUso.length
+    ? projeto.casosUso.length + " caso(s) de uso cadastrado(s)."
+    : "Nenhum caso de uso ainda.";
+  if(!projeto.casosUso.length){
+    lista.innerHTML = '<div class="vazio" style="grid-column:1/-1"><strong>Nenhum caso de uso</strong>Clique em "+ Novo caso de uso" para começar.</div>';
+    tabela.innerHTML = "";
+    renderDiagramaUC();
+    return;
+  }
+  // --- Cards ---
+  lista.innerHTML = projeto.casosUso.map(uc => `
+    <article class="card-uc">
+      <div class="topo-card">
+        <span class="badge">${esc(uc.id)}</span>
+        <h4>${esc(uc.nome)}</h4>
+      </div>
+      ${uc.descricao ? `<p class="descricao">${esc(uc.descricao)}</p>` : ""}
+      <div class="meta">
+        <b>Ator principal:</b> ${esc(uc.atorPrincipal) || "—"}<br>
+        <b>Secundários:</b> ${esc((uc.atoresSecundarios || []).join(", ")) || "—"}<br>
+        ${uc.requisitosRelacionados && uc.requisitosRelacionados.length ? `<b>Requisitos:</b> ${esc(uc.requisitosRelacionados.join(", "))}` : ""}
+      </div>
+      ${uc.fluxoPrincipal && uc.fluxoPrincipal.length ? `
+        <div class="meta"><b>Fluxo principal:</b></div>
+        <ol>${uc.fluxoPrincipal.map(p => `<li>${esc(p)}</li>`).join("")}</ol>` : ""}
+      <div class="acoes-card">
+        <button class="btn btn-pequeno" type="button" data-editar-uc="${uc.id}">Editar</button>
+        <button class="btn btn-pequeno" type="button" data-diagramar-uc="${uc.id}">Diagrama de atividades</button>
+        <button class="btn btn-pequeno btn-perigo" type="button" data-excluir-uc="${uc.id}">Excluir</button>
+      </div>
+    </article>`).join("");
+  // --- Tabela ---
+  tabela.innerHTML = `
+    <table>
+      <thead><tr><th>ID</th><th>Nome</th><th>Ator principal</th><th>Secundários</th><th>Passos</th><th>Requisitos</th><th>Ações</th></tr></thead>
+      <tbody>${projeto.casosUso.map(uc => `
+        <tr>
+          <td><span class="badge">${esc(uc.id)}</span></td>
+          <td><b>${esc(uc.nome)}</b></td>
+          <td>${esc(uc.atorPrincipal) || "—"}</td>
+          <td>${esc((uc.atoresSecundarios || []).join(", ")) || "—"}</td>
+          <td>${(uc.fluxoPrincipal || []).length}</td>
+          <td>${esc((uc.requisitosRelacionados || []).join(", ")) || "—"}</td>
+          <td>
+            <button class="btn btn-pequeno" type="button" data-editar-uc="${uc.id}">Editar</button>
+            <button class="btn btn-pequeno btn-perigo" type="button" data-excluir-uc="${uc.id}">Excluir</button>
+          </td>
+        </tr>`).join("")}</tbody>
+    </table>`;
+  lista.style.display = verUCTabela ? "none" : "";
+  tabela.style.display = verUCTabela ? "" : "none";
+  $("#btnVerUC").textContent = verUCTabela ? "🃏 Ver como cards" : "📋 Ver como tabela";
+  $("#btnVerUC").setAttribute("aria-pressed", String(verUCTabela));
+  renderDiagramaUC();
+}
+
+/* Gera o diagrama de casos de uso em SVG (atores à esquerda, elipses no sistema) */
+function renderDiagramaUC(){
+  const caixa = $("#diagramaUC");
+  const ucs = projeto.casosUso;
+  const atores = projeto.atores;
+  if(!ucs.length){
+    caixa.innerHTML = '<div class="vazio"><strong>Diagrama vazio</strong>Cadastre casos de uso para gerar o diagrama automaticamente.</div>';
+    return;
+  }
+  const largura = 920, alturaElipse = 46, passoY = 68;
+  const altura = Math.max(220, 90 + ucs.length * passoY);
+  const xSistema = 240, larguraSistema = largura - xSistema - 20;
+  const cx = xSistema + larguraSistema / 2;
+  const rx = Math.min(190, larguraSistema / 2 - 14);
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${largura} ${altura}" width="${largura}" role="img" aria-label="Diagrama de casos de uso">`;
+  svg += `<defs><marker id="setaUC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker></defs>`;
+  // Fronteira do sistema
+  svg += `<rect x="${xSistema}" y="14" width="${larguraSistema}" height="${altura - 28}" rx="14" fill="none" stroke="#2563eb" stroke-width="2" stroke-dasharray="7 5"/>`;
+  svg += `<text x="${cx}" y="38" text-anchor="middle" font-size="14" font-weight="700" fill="#2563eb">Sistema: ${esc(projeto.nome || "Sistema")}</text>`;
+  // Elipses dos casos de uso
+  const centros = {};
+  ucs.forEach((uc, i) => {
+    const cy = 78 + i * passoY;
+    centros[uc.id] = {x: cx, y: cy};
+    svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${alturaElipse/2}" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6"/>`;
+    svg += `<text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0f172a">${esc(uc.id)}</text>`;
+    svg += `<text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="12" fill="#0f172a">${esc(truncar(uc.nome, 26))}</text>`;
+  });
+  // Atores à esquerda + linhas de associação
+  if(!atores.length){
+    svg += `<text x="110" y="${altura/2}" text-anchor="middle" font-size="12" fill="#64748b">Sem atores</text>`;
+  }
+  atores.forEach((ator, ai) => {
+    const ay = 78 + ai * 64;
+    const ax = 96;
+    // "bonequinho" simples do ator
+    svg += `<circle cx="${ax}" cy="${ay - 22}" r="9" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.6"/>`;
+    svg += `<path d="M${ax},${ay - 13} v16 M${ax - 12},${ay - 6} h24 M${ax},${ay + 3} l-9,14 M${ax},${ay + 3} l9,14" stroke="#7c3aed" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+    svg += `<text x="${ax}" y="${ay + 34}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#0f172a">${esc(truncar(ator.nome, 18))}</text>`;
+    // Ligações: ator principal (linha cheia) e secundário (tracejada)
+    ucs.forEach(uc => {
+      const c = centros[uc.id];
+      if(!c) return;
+      if(uc.atorPrincipal === ator.nome){
+        svg += `<line x1="${ax + 16}" y1="${ay}" x2="${c.x - rx}" y2="${c.y}" stroke="#2563eb" stroke-width="1.6" marker-end="url(#setaUC)"/>`;
+      }else if((uc.atoresSecundarios || []).includes(ator.nome)){
+        svg += `<line x1="${ax + 16}" y1="${ay}" x2="${c.x - rx}" y2="${c.y}" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#setaUC)"/>`;
+      }
+    });
+  });
+  svg += `</svg>`;
+  caixa.innerHTML = svg;
+  caixa.dataset.svg = svg;
+}
+function truncar(texto, max){
+  texto = String(texto || "");
+  return texto.length > max ? texto.slice(0, max - 1) + "…" : texto;
+}
+
+/* --- Modal de caso de uso --- */
+function abrirModalUC(uc){
+  const editando = Boolean(uc);
+  uc = uc || {id:"", nome:"", atorPrincipal:"", atoresSecundarios:[], descricao:"", preCondicoes:"", posCondicoes:"", fluxoPrincipal:[], fluxosAlternativos:"", fluxosExcecao:"", requisitosRelacionados:[]};
+  $("#tituloModalUC").textContent = editando ? "Editar caso de uso " + uc.id : "Novo caso de uso";
+  $("#ucId").value = uc.id || "";
+  $("#ucNome").value = uc.nome || "";
+  $("#ucDescricao").value = uc.descricao || "";
+  $("#ucPre").value = uc.preCondicoes || "";
+  $("#ucPos").value = uc.posCondicoes || "";
+  $("#ucFluxo").value = listaParaLinhas(uc.fluxoPrincipal || []);
+  $("#ucAlt").value = uc.fluxosAlternativos || "";
+  $("#ucExc").value = uc.fluxosExcecao || "";
+  // Ator principal (select a partir dos atores cadastrados)
+  const selAtor = $("#ucAtorPrincipal");
+  selAtor.innerHTML = '<option value="">— Selecione —</option>' +
+    projeto.atores.map(a => `<option ${a.nome === uc.atorPrincipal ? "selected" : ""}>${esc(a.nome)}</option>`).join("") +
+    (uc.atorPrincipal && !projeto.atores.some(a => a.nome === uc.atorPrincipal) ? `<option selected>${esc(uc.atorPrincipal)}</option>` : "");
+  // Atores secundários (checkboxes)
+  $("#ucAtoresSecundarios").innerHTML = projeto.atores.length
+    ? projeto.atores.map(a => `<label><input type="checkbox" value="${esc(a.nome)}" ${((uc.atoresSecundarios||[]).includes(a.nome) || a.nome === uc.atorPrincipal) ? "checked" : ""} ${a.nome === uc.atorPrincipal ? "disabled" : ""}> ${esc(a.nome)}</label>`).join("")
+    : '<span class="dica">Nenhum ator cadastrado. Cadastre atores na seção Projeto.</span>';
+  // Requisitos relacionados (checkboxes de RF)
+  const rfs = projeto.requisitos.filter(r => r.tipo === "RF");
+  $("#ucRequisitos").innerHTML = rfs.length
+    ? rfs.map(r => `<label><input type="checkbox" value="${esc(r.id)}" ${(uc.requisitosRelacionados||[]).includes(r.id) ? "checked" : ""}> ${esc(r.id)} — ${esc(truncar(r.titulo, 34))}</label>`).join("")
+    : '<span class="dica">Nenhum requisito funcional cadastrado ainda.</span>';
+  abrirModal("modalUC");
+}
+function salvarUC(e){
+  e.preventDefault();
+  const nome = $("#ucNome").value.trim();
+  if(!nome){
+    $("#campoUcNome").classList.add("invalido"); $("#ucNome").focus();
+    toast("Informe o nome do caso de uso.", true); return;
+  }
+  const atorPrincipal = $("#ucAtorPrincipal").value;
+  if(!atorPrincipal){
+    $("#campoUcAtor").classList.add("invalido"); $("#ucAtorPrincipal").focus();
+    toast("Selecione o ator principal. Cadastre atores na seção Projeto.", true); return;
+  }
+  $("#campoUcNome").classList.remove("invalido");
+  $("#campoUcAtor").classList.remove("invalido");
+  const secundarios = $$("#ucAtoresSecundarios input:checked").map(i => i.value).filter(n => n !== atorPrincipal);
+  const reqs = $$("#ucRequisitos input:checked").map(i => i.value);
+  const dados = {
+    nome, atorPrincipal, atoresSecundarios: secundarios,
+    descricao: $("#ucDescricao").value.trim(),
+    preCondicoes: $("#ucPre").value.trim(),
+    posCondicoes: $("#ucPos").value.trim(),
+    fluxoPrincipal: linhasParaLista($("#ucFluxo").value),
+    fluxosAlternativos: $("#ucAlt").value.trim(),
+    fluxosExcecao: $("#ucExc").value.trim(),
+    requisitosRelacionados: reqs
+  };
+  const idEdit = $("#ucId").value;
+  if(idEdit){
+    const uc = projeto.casosUso.find(u => u.id === idEdit);
+    if(uc) Object.assign(uc, dados);
+    toast("Caso de uso atualizado.");
+  }else{
+    dados.id = proximoId(projeto.casosUso, "UC");
+    projeto.casosUso.push(dados);
+    toast("Caso de uso " + dados.id + " criado.");
+  }
+  fecharModal("modalUC");
+  salvar(); renderCasosUso(); renderSeletorAtividades(); renderMatriz();
+}
+function excluirUC(id){
+  const uc = projeto.casosUso.find(u => u.id === id);
+  if(!uc) return;
+  if(!confirm(`Excluir o caso de uso "${uc.id} — ${uc.nome}"? O diagrama de atividades dele também será removido.`)) return;
+  projeto.casosUso = projeto.casosUso.filter(u => u.id !== id);
+  delete projeto.diagramas[id];
+  projeto.requisitos.forEach(r => { if(r.casoUsoRelacionado === id) r.casoUsoRelacionado = ""; });
+  salvar(); renderCasosUso(); renderSeletorAtividades(); renderRequisitos(); renderMatriz();
+  toast("Caso de uso excluído.");
+}
+
+/* ============================================================
+   SEÇÃO 2 — DIAGRAMA DE ATIVIDADES
+   ============================================================ */
+function diagramaDe(ucId){
+  if(!projeto.diagramas[ucId]) projeto.diagramas[ucId] = {modo:"visual", nos:[], mermaidCode:""};
+  return projeto.diagramas[ucId];
+}
+function renderSeletorAtividades(){
+  const sel = $("#selCasoUsoAtividade");
+  const atual = sel.value;
+  sel.innerHTML = projeto.casosUso.length
+    ? projeto.casosUso.map(uc => `<option value="${esc(uc.id)}">${esc(uc.id)} — ${esc(uc.nome)}</option>`).join("")
+    : '<option value="">— Nenhum caso de uso cadastrado —</option>';
+  if(atual && projeto.casosUso.some(u => u.id === atual)) sel.value = atual;
+  renderEditorAtividades();
+}
+function renderEditorAtividades(){
+  const ucId = $("#selCasoUsoAtividade").value;
+  const diag = ucId ? diagramaDe(ucId) : {modo:"visual", nos:[], mermaidCode:""};
+  modoEditor = diag.modo || "visual";
+  $("#modoVisual").classList.toggle("ativo", modoEditor === "visual");
+  $("#modoMermaid").classList.toggle("ativo", modoEditor === "mermaid");
+  $("#modoVisual").setAttribute("aria-pressed", String(modoEditor === "visual"));
+  $("#modoMermaid").setAttribute("aria-pressed", String(modoEditor === "mermaid"));
+  $("#painelVisual").hidden = modoEditor !== "visual";
+  $("#painelMermaid").hidden = modoEditor !== "mermaid";
+  $("#codigoMermaid").value = diag.mermaidCode || "";
+  renderNos();
+  renderPreviewAtividades();
+}
+const ROTULOS_NO = {inicio:"Início", acao:"Ação", decisao:"Decisão", fork:"Fork (paralelismo)", join:"Join", fim:"Fim"};
+function renderNos(){
+  const ucId = $("#selCasoUsoAtividade").value;
+  const caixa = $("#listaNos");
+  if(!ucId){
+    caixa.innerHTML = '<div class="vazio"><strong>Selecione um caso de uso</strong>Cadastre casos de uso na seção 1 para detalhar o fluxo.</div>';
+    return;
+  }
+  const diag = diagramaDe(ucId);
+  if(!diag.nos.length){
+    caixa.innerHTML = '<div class="vazio"><strong>Diagrama vazio</strong>Adicione nós com os botões acima ou gere um rascunho a partir do fluxo principal do caso de uso.</div>';
+    return;
+  }
+  const opcoesDestino = (atual) => '<option value="">— próximo da lista —</option>' +
+    diag.nos.map(n => `<option value="${n.id}" ${n.id === atual ? "selected" : ""}>${esc(ROTULOS_NO[n.tipo])}: ${esc(truncar(n.texto || "(sem texto)", 30))}</option>`).join("");
+  caixa.innerHTML = diag.nos.map((no, i) => `
+    <div class="no-card" data-no="${no.id}">
+      <div class="no-topo">
+        <span class="ordem">${i + 1}.</span>
+        <span class="badge ${no.tipo === "decisao" ? "roxo" : no.tipo === "fim" ? "verde" : ""}">${esc(ROTULOS_NO[no.tipo] || no.tipo)}</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-pequeno" type="button" data-no-mover="-1" data-no-id="${no.id}" aria-label="Mover para cima" ${i === 0 ? "disabled" : ""}>↑</button>
+        <button class="btn btn-pequeno" type="button" data-no-mover="1" data-no-id="${no.id}" aria-label="Mover para baixo" ${i === diag.nos.length - 1 ? "disabled" : ""}>↓</button>
+        <button class="btn btn-pequeno btn-perigo" type="button" data-no-excluir="${no.id}">Excluir</button>
+      </div>
+      <div class="campo" style="margin-bottom:9px">
+        <label>Texto do nó</label>
+        <input type="text" data-no-campo="texto" data-no-id="${no.id}" value="${esc(no.texto || "")}" placeholder="${no.tipo === "decisao" ? "Pergunta da decisão" : "Descreva a ação"}">
+      </div>
+      ${no.tipo === "decisao" ? `
+      <div class="grade-no">
+        <div class="campo"><label>Condição "sim"</label><input type="text" data-no-campo="simTexto" data-no-id="${no.id}" value="${esc(no.simTexto || "Sim")}" placeholder="Sim"></div>
+        <div class="campo"><label>Condição "não"</label><input type="text" data-no-campo="naoTexto" data-no-id="${no.id}" value="${esc(no.naoTexto || "Não")}" placeholder="Não"></div>
+        <div class="campo"><label>Destino do "sim"</label><select data-no-campo="simDestino" data-no-id="${no.id}">${opcoesDestino(no.simDestino)}</select></div>
+        <div class="campo"><label>Destino do "não"</label><select data-no-campo="naoDestino" data-no-id="${no.id}">${opcoesDestino(no.naoDestino)}</select></div>
+      </div>` : `
+      <div class="campo"><label>Próximo nó</label><select data-no-campo="proximo" data-no-id="${no.id}">${opcoesDestino(no.proximo)}</select></div>`}
+    </div>`).join("");
+}
+function adicionarNo(tipo){
+  const ucId = $("#selCasoUsoAtividade").value;
+  if(!ucId){ toast("Selecione um caso de uso primeiro.", true); return; }
+  const diag = diagramaDe(ucId);
+  const textosPadrao = {inicio:"Início", acao:"Nova ação", decisao:"Condição?", fork:"Fork", join:"Join", fim:"Fim"};
+  diag.nos.push({id: uid("no"), tipo, texto: textosPadrao[tipo] || "Nó", simTexto:"Sim", naoTexto:"Não", simDestino:"", naoDestino:"", proximo:""});
+  salvar(); renderNos(); renderPreviewAtividades();
+}
+function moverNo(id, delta){
+  const ucId = $("#selCasoUsoAtividade").value;
+  const diag = diagramaDe(ucId);
+  const i = diag.nos.findIndex(n => n.id === id);
+  const j = i + delta;
+  if(i < 0 || j < 0 || j >= diag.nos.length) return;
+  const [no] = diag.nos.splice(i, 1);
+  diag.nos.splice(j, 0, no);
+  salvar(); renderNos(); renderPreviewAtividades();
+}
+function excluirNo(id){
+  const ucId = $("#selCasoUsoAtividade").value;
+  const diag = diagramaDe(ucId);
+  const no = diag.nos.find(n => n.id === id);
+  if(!no) return;
+  if(!confirm(`Excluir o nó "${no.texto || ROTULOS_NO[no.tipo]}"?`)) return;
+  diag.nos = diag.nos.filter(n => n.id !== id);
+  diag.nos.forEach(n => {
+    if(n.proximo === id) n.proximo = "";
+    if(n.simDestino === id) n.simDestino = "";
+    if(n.naoDestino === id) n.naoDestino = "";
+  });
+  salvar(); renderNos(); renderPreviewAtividades();
+}
+function gerarRascunho(){
+  const ucId = $("#selCasoUsoAtividade").value;
+  const uc = projeto.casosUso.find(u => u.id === ucId);
+  if(!uc){ toast("Selecione um caso de uso primeiro.", true); return; }
+  const passos = uc.fluxoPrincipal && uc.fluxoPrincipal.length ? uc.fluxoPrincipal : ["Executar o caso de uso"];
+  const nos = [{id: uid("no"), tipo:"inicio", texto:"Início", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""}];
+  passos.forEach(passo => {
+    const ehDecisao = /\?\s*$/.test(passo) || /^(se|verificar se|caso)\b/i.test(passo);
+    nos.push({id: uid("no"), tipo: ehDecisao ? "decisao" : "acao", texto: passo, simTexto:"Sim", naoTexto:"Não", simDestino:"", naoDestino:"", proximo:""});
+  });
+  nos.push({id: uid("no"), tipo:"fim", texto:"Fim", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""});
+  const diag = diagramaDe(ucId);
+  diag.nos = nos;
+  diag.modo = "visual";
+  salvar(); renderEditorAtividades();
+  toast("Rascunho gerado a partir do fluxo principal de " + uc.id + ".");
+}
+/* Converte os nós visuais em código Mermaid (flowchart TD) */
+function nosParaMermaid(nos){
+  if(!nos.length) return "flowchart TD\n    A([Início])";
+  const ids = {};
+  nos.forEach((n, i) => { ids[n.id] = "N" + (i + 1); });
+  const rotulo = (n) => String(n.texto || ROTULOS_NO[n.tipo] || "Nó").replace(/["\[\]{}()]/g, "").trim() || "Nó";
+  const linhas = ["flowchart TD"];
+  nos.forEach((n, i) => {
+    const id = ids[n.id];
+    if(n.tipo === "inicio") linhas.push(`    ${id}([${rotulo(n)}])`);
+    else if(n.tipo === "fim") linhas.push(`    ${id}([${rotulo(n)}])`);
+    else if(n.tipo === "decisao") linhas.push(`    ${id}{${rotulo(n)}}`);
+    else if(n.tipo === "fork" || n.tipo === "join") linhas.push(`    ${id}[[${rotulo(n)}]]`);
+    else linhas.push(`    ${id}[${rotulo(n)}]`);
+  });
+  nos.forEach((n, i) => {
+    const id = ids[n.id];
+    if(n.tipo === "decisao"){
+      const sim = n.simDestino && ids[n.simDestino] ? ids[n.simDestino] : (ids[nos[i+1]?.id] || "");
+      const nao = n.naoDestino && ids[n.naoDestino] ? ids[n.naoDestino] : (ids[nos[i+2]?.id] || ids[nos[i+1]?.id] || "");
+      if(sim) linhas.push(`    ${id} -- "${escMermaid(n.simTexto || "Sim")}" --> ${sim}`);
+      if(nao && nao !== sim) linhas.push(`    ${id} -- "${escMermaid(n.naoTexto || "Não")}" --> ${nao}`);
+    }else{
+      const prox = n.proximo && ids[n.proximo] ? ids[n.proximo] : (ids[nos[i+1]?.id] || "");
+      if(prox) linhas.push(`    ${id} --> ${prox}`);
+    }
+  });
+  return linhas.join("\n");
+}
+function escMermaid(texto){ return String(texto || "").replace(/"/g, "'"); }
+/* Renderiza a pré-visualização (Mermaid ao vivo, com fallback) */
+async function renderPreviewAtividades(){
+  const caixa = $("#previewAtividades");
+  const erro = $("#erroMermaid");
+  const ucId = $("#selCasoUsoAtividade") ? $("#selCasoUsoAtividade").value : "";
+  const diag = ucId ? diagramaDe(ucId) : null;
+  if(!diag || (!diag.nos.length && !(diag.mermaidCode || "").trim())){
+    caixa.innerHTML = '<div class="vazio"><strong>Sem diagrama</strong>Adicione nós no editor visual ou escreva código Mermaid.</div>';
+    ultimoSVGAtividades = "";
+    return;
+  }
+  const codigo = modoEditor === "mermaid" ? ($("#codigoMermaid").value || "") : nosParaMermaid(diag.nos);
+  if(modoEditor === "mermaid"){ diag.mermaidCode = codigo; }
+  erro.style.display = "none";
+  // Sem Mermaid (offline/CDN bloqueado): mostra o código + fluxo simples em SVG
+  if(typeof mermaid === "undefined"){
+    caixa.innerHTML = `<pre style="white-space:pre-wrap;font-size:12.5px;margin:0 0 12px">${esc(codigo)}</pre>
+      <p style="font-size:12.5px;color:var(--cor-texto-suave);margin:0">⚠ Biblioteca Mermaid não carregada (verifique sua conexão). O código acima pode ser usado em qualquer ferramenta Mermaid.</p>`;
+    ultimoSVGAtividades = "";
+    return;
+  }
+  try{
+    mermaid.initialize({startOnLoad:false, theme: document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "default"});
+    contadorMermaid++;
+    const {svg} = await mermaid.render("mermaid-diag-" + contadorMermaid, codigo);
+    caixa.innerHTML = svg;
+    ultimoSVGAtividades = svg;
+  }catch(e){
+    erro.textContent = "Erro no código Mermaid: " + (e && e.message ? e.message : e);
+    erro.style.display = "block";
+    caixa.innerHTML = `<pre style="white-space:pre-wrap;font-size:12.5px;margin:0">${esc(codigo)}</pre>`;
+    ultimoSVGAtividades = "";
+  }
+}
+function exportarSVGAtividades(){
+  if(!ultimoSVGAtividades){ toast("Nada para exportar — gere o diagrama primeiro.", true); return; }
+  const ucId = $("#selCasoUsoAtividade").value;
+  baixarArquivo(ultimoSVGAtividades, nomeArquivo("diagrama-atividades-" + (ucId || ""), ".svg"), "image/svg+xml;charset=utf-8");
+  toast("SVG exportado.");
+}
+function exportarPNGAtividades(){
+  if(!ultimoSVGAtividades){ toast("Nada para exportar — gere o diagrama primeiro.", true); return; }
+  const url = URL.createObjectURL(new Blob([ultimoSVGAtividades], {type:"image/svg+xml;charset=utf-8"}));
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || 900;
+    canvas.height = img.naturalHeight || 600;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = nomeArquivo("diagrama-atividades-" + ($("#selCasoUsoAtividade").value || ""), ".png");
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      toast("PNG exportado.");
+    }, "image/png");
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast("Não foi possível gerar o PNG.", true); };
+  img.src = url;
+}
+
+/* ============================================================
+   SEÇÃO 3 — REQUISITOS
+   ============================================================ */
+function renderRequisitos(){
+  const busca = ($("#filtroBusca").value || "").toLowerCase();
+  const prio = $("#filtroPrioridade").value;
+  const cat = $("#filtroCategoria").value;
+  const status = $("#filtroStatus").value;
+  $("#campoFiltroCategoria").style.display = abaRequisito === "RNF" ? "" : "none";
+  const lista = projeto.requisitos.filter(r => r.tipo === abaRequisito)
+    .filter(r => !prio || r.prioridade === prio)
+    .filter(r => abaRequisito !== "RNF" || !cat || r.categoria === cat)
+    .filter(r => !status || r.status === status)
+    .filter(r => !busca || (r.titulo + " " + r.descricao).toLowerCase().includes(busca));
+  const totalTipo = projeto.requisitos.filter(r => r.tipo === abaRequisito).length;
+  $("#resumoReq").textContent = lista.length + " de " + totalTipo + " requisito(s) " + abaRequisito + " exibido(s).";
+  const caixa = $("#tabelaRequisitos");
+  if(!lista.length){
+    caixa.innerHTML = '<div class="vazio"><strong>Nenhum requisito encontrado</strong>Ajuste os filtros ou cadastre um novo requisito.</div>';
+    return;
+  }
+  const badgePrio = p => p === "Essencial" ? '<span class="badge">Essencial</span>' : p === "Importante" ? '<span class="badge amarelo">Importante</span>' : '<span class="badge cinza">Desejável</span>';
+  const badgeStatus = s => s === "Implementado" ? '<span class="badge verde">Implementado</span>' : s === "Aprovado" ? '<span class="badge">Aprovado</span>' : '<span class="badge cinza">Proposto</span>';
+  caixa.innerHTML = `
+    <table>
+      <thead><tr><th>ID</th><th>Título</th><th>Descrição</th>${abaRequisito === "RNF" ? "<th>Categoria</th>" : ""}<th>Prioridade</th><th>Status</th><th>Caso de uso</th><th>Ações</th></tr></thead>
+      <tbody>${lista.map(r => `
+        <tr>
+          <td><span class="badge ${abaRequisito === "RNF" ? "roxo" : ""}">${esc(r.id)}</span></td>
+          <td><b>${esc(r.titulo)}</b></td>
+          <td>${esc(r.descricao) || "—"}</td>
+          ${abaRequisito === "RNF" ? `<td>${esc(r.categoria || "—")}</td>` : ""}
+          <td>${badgePrio(r.prioridade)}</td>
+          <td>${badgeStatus(r.status)}</td>
+          <td>${esc(r.casoUsoRelacionado) || "—"}</td>
+          <td>
+            <button class="btn btn-pequeno" type="button" data-editar-req="${r.id}">Editar</button>
+            <button class="btn btn-pequeno btn-perigo" type="button" data-excluir-req="${r.id}">Excluir</button>
+          </td>
+        </tr>`).join("")}</tbody>
+    </table>`;
+  renderMatriz();
+}
+/* Matriz de rastreabilidade: casos de uso × requisitos funcionais */
+function renderMatriz(){
+  const caixa = $("#matriz");
+  const rfs = projeto.requisitos.filter(r => r.tipo === "RF");
+  if(!projeto.casosUso.length || !rfs.length){
+    caixa.innerHTML = '<div class="vazio"><strong>Matriz indisponível</strong>Cadastre casos de uso e requisitos funcionais para gerar a matriz.</div>';
+    return;
+  }
+  const relacionado = (uc, rf) => rf.casoUsoRelacionado === uc.id || (uc.requisitosRelacionados || []).includes(rf.id);
+  caixa.innerHTML = `
+    <table>
+      <thead><tr><th>Caso de uso</th>${rfs.map(r => `<th title="${esc(r.titulo)}">${esc(r.id)}</th>`).join("")}</tr></thead>
+      <tbody>${projeto.casosUso.map(uc => `
+        <tr>
+          <td><b>${esc(uc.id)}</b> — ${esc(uc.nome)}</td>
+          ${rfs.map(r => `<td style="text-align:center">${relacionado(uc, r) ? '<span style="color:var(--cor-sucesso);font-weight:800" title="Relacionado">✓</span>' : '<span style="color:var(--cor-texto-claro)">—</span>'}</td>`).join("")}
+        </tr>`).join("")}</tbody>
+    </table>`;
+}
+function abrirModalReq(req){
+  const editando = Boolean(req);
+  req = req || {id:"", tipo: abaRequisito, titulo:"", descricao:"", prioridade:"Essencial", status:"Proposto", casoUsoRelacionado:"", categoria:"Desempenho"};
+  $("#tituloModalReq").textContent = (editando ? "Editar requisito " + req.id : "Novo requisito " + abaRequisito);
+  $("#reqId").value = req.id || "";
+  $("#reqTipo").value = req.tipo || abaRequisito;
+  $("#reqTitulo").value = req.titulo || "";
+  $("#reqDescricao").value = req.descricao || "";
+  $("#reqPrioridade").value = req.prioridade || "Essencial";
+  $("#reqStatus").value = req.status || "Proposto";
+  $("#reqCategoria").value = req.categoria || "Desempenho";
+  $("#campoReqCategoria").style.display = (req.tipo || abaRequisito) === "RNF" ? "" : "none";
+  $("#reqCasoUso").innerHTML = '<option value="">— Nenhum —</option>' +
+    projeto.casosUso.map(uc => `<option value="${esc(uc.id)}" ${uc.id === req.casoUsoRelacionado ? "selected" : ""}>${esc(uc.id)} — ${esc(uc.nome)}</option>`).join("");
+  abrirModal("modalReq");
+}
+function salvarReq(e){
+  e.preventDefault();
+  const titulo = $("#reqTitulo").value.trim();
+  if(!titulo){
+    $("#campoReqTitulo").classList.add("invalido"); $("#reqTitulo").focus();
+    toast("Informe o título do requisito.", true); return;
+  }
+  $("#campoReqTitulo").classList.remove("invalido");
+  const tipo = $("#reqTipo").value;
+  const dados = {
+    tipo, titulo,
+    descricao: $("#reqDescricao").value.trim(),
+    prioridade: $("#reqPrioridade").value,
+    status: $("#reqStatus").value,
+    categoria: tipo === "RNF" ? $("#reqCategoria").value : "",
+    casoUsoRelacionado: $("#reqCasoUso").value
+  };
+  const idEdit = $("#reqId").value;
+  if(idEdit){
+    const req = projeto.requisitos.find(r => r.id === idEdit);
+    if(req) Object.assign(req, dados);
+    toast("Requisito atualizado.");
+  }else{
+    dados.id = proximoId(projeto.requisitos.filter(r => r.tipo === tipo), tipo);
+    projeto.requisitos.push(dados);
+    toast("Requisito " + dados.id + " criado.");
+  }
+  fecharModal("modalReq");
+  salvar(); renderRequisitos();
+}
+function excluirReq(id){
+  const req = projeto.requisitos.find(r => r.id === id);
+  if(!req) return;
+  if(!confirm(`Excluir o requisito "${req.id} — ${req.titulo}"?`)) return;
+  projeto.requisitos = projeto.requisitos.filter(r => r.id !== id);
+  projeto.casosUso.forEach(uc => { uc.requisitosRelacionados = (uc.requisitosRelacionados || []).filter(x => x !== id); });
+  salvar(); renderRequisitos(); renderCasosUso();
+  toast("Requisito excluído.");
+}
+
+/* ============================================================
+   SEÇÃO 4 — ROTEIRO DO PROGRAMA
+   ============================================================ */
+function renderTelas(){
+  const caixa = $("#listaTelas");
+  if(!projeto.telas.length){
+    caixa.innerHTML = '<div class="vazio"><strong>Nenhuma tela cadastrada</strong>Clique em "+ Nova tela" para montar o roteiro do programa.</div>';
+    renderFluxoTelas();
+    return;
+  }
+  caixa.innerHTML = projeto.telas.map((t, i) => `
+    <div class="item-lista">
+      <div class="conteudo-item">
+        <div class="titulo">${i + 1}. ${esc(t.nome)}</div>
+        ${t.objetivo ? `<div class="detalhe"><b>Objetivo:</b> ${esc(t.objetivo)}</div>` : ""}
+        <div class="detalhe">
+          ${t.ator ? `<b>Ator:</b> ${esc(t.ator)} · ` : ""}
+          ${t.proximaTela ? `<b>Próxima:</b> ${esc(t.proximaTela)}` : "<b>Próxima:</b> Fim"}
+        </div>
+        ${t.entradas ? `<div class="detalhe"><b>Entradas:</b> ${esc(t.entradas)}</div>` : ""}
+        ${t.regrasNegocio ? `<div class="detalhe"><b>Regras:</b> ${esc(t.regrasNegocio)}</div>` : ""}
+        ${t.saidas ? `<div class="detalhe"><b>Saídas:</b> ${esc(t.saidas)}</div>` : ""}
+      </div>
+      <div class="acoes-item">
+        <button class="btn btn-pequeno" type="button" data-tela-mover="-1" data-tela-id="${t.id}" ${i === 0 ? "disabled" : ""}>↑</button>
+        <button class="btn btn-pequeno" type="button" data-tela-mover="1" data-tela-id="${t.id}" ${i === projeto.telas.length - 1 ? "disabled" : ""}>↓</button>
+        <button class="btn btn-pequeno" type="button" data-editar-tela="${t.id}">Editar</button>
+        <button class="btn btn-pequeno btn-perigo" type="button" data-excluir-tela="${t.id}">Excluir</button>
+      </div>
+    </div>`).join("");
+  renderFluxoTelas();
+}
+/* Fluxo de navegação entre telas em SVG */
+function renderFluxoTelas(){
+  const caixa = $("#fluxoTelas");
+  if(!projeto.telas.length){
+    caixa.innerHTML = '<div class="vazio"><strong>Fluxo vazio</strong>Cadastre telas para visualizar a navegação.</div>';
+    return;
+  }
+  const largura = 640, larguraCaixa = 380, alturaCaixa = 52, passoY = 86;
+  const altura = 30 + projeto.telas.length * passoY + 30;
+  const x = (largura - larguraCaixa) / 2;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${largura} ${altura}" width="${largura}" role="img" aria-label="Fluxo de navegação entre telas">`;
+  svg += `<defs><marker id="setaTela" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker></defs>`;
+  projeto.telas.forEach((t, i) => {
+    const y = 24 + i * passoY;
+    svg += `<rect x="${x}" y="${y}" width="${larguraCaixa}" height="${alturaCaixa}" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="1.6"/>`;
+    svg += `<text x="${largura/2}" y="${y + 22}" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">${esc(truncar(t.nome, 44))}</text>`;
+    svg += `<text x="${largura/2}" y="${y + 40}" text-anchor="middle" font-size="11" fill="#475569">${esc(truncar(t.proximaTela ? "→ " + t.proximaTela : "→ Fim", 44))}</text>`;
+    if(i < projeto.telas.length - 1){
+      svg += `<line x1="${largura/2}" y1="${y + alturaCaixa}" x2="${largura/2}" y2="${y + passoY}" stroke="#2563eb" stroke-width="1.8" marker-end="url(#setaTela)"/>`;
+    }
+  });
+  svg += `</svg>`;
+  caixa.innerHTML = svg;
+}
+function abrirModalTela(tela){
+  const editando = Boolean(tela);
+  tela = tela || {id:"", nome:"", objetivo:"", ator:"", entradas:"", regrasNegocio:"", saidas:"", proximaTela:""};
+  $("#tituloModalTela").textContent = editando ? "Editar tela" : "Nova tela";
+  $("#telaId").value = tela.id || "";
+  $("#telaNome").value = tela.nome || "";
+  $("#telaObjetivo").value = tela.objetivo || "";
+  $("#telaEntradas").value = tela.entradas || "";
+  $("#telaRegras").value = tela.regrasNegocio || "";
+  $("#telaSaidas").value = tela.saidas || "";
+  $("#telaAtor").innerHTML = '<option value="">— Selecione —</option>' +
+    projeto.atores.map(a => `<option ${a.nome === tela.ator ? "selected" : ""}>${esc(a.nome)}</option>`).join("") +
+    (tela.ator && !projeto.atores.some(a => a.nome === tela.ator) ? `<option selected>${esc(tela.ator)}</option>` : "");
+  $("#telaProxima").innerHTML = '<option value="">— Fim —</option>' +
+    projeto.telas.filter(t => t.id !== tela.id).map(t => `<option ${t.nome === tela.proximaTela ? "selected" : ""}>${esc(t.nome)}</option>`).join("");
+  abrirModal("modalTela");
+}
+function salvarTela(e){
+  e.preventDefault();
+  const nome = $("#telaNome").value.trim();
+  if(!nome){
+    $("#campoTelaNome").classList.add("invalido"); $("#telaNome").focus();
+    toast("Informe o nome da tela.", true); return;
+  }
+  $("#campoTelaNome").classList.remove("invalido");
+  const dados = {
+    nome,
+    objetivo: $("#telaObjetivo").value.trim(),
+    ator: $("#telaAtor").value,
+    entradas: $("#telaEntradas").value.trim(),
+    regrasNegocio: $("#telaRegras").value.trim(),
+    saidas: $("#telaSaidas").value.trim(),
+    proximaTela: $("#telaProxima").value
+  };
+  const idEdit = $("#telaId").value;
+  if(idEdit){
+    const tela = projeto.telas.find(t => t.id === idEdit);
+    const nomeAntigo = tela ? tela.nome : "";
+    if(tela) Object.assign(tela, dados);
+    // Mantém referências de "próxima tela" atualizadas
+    if(nomeAntigo && nomeAntigo !== nome) projeto.telas.forEach(t => { if(t.proximaTela === nomeAntigo) t.proximaTela = nome; });
+    toast("Tela atualizada.");
+  }else{
+    dados.id = uid("tela");
+    projeto.telas.push(dados);
+    toast("Tela adicionada.");
+  }
+  fecharModal("modalTela");
+  salvar(); renderTelas();
+}
+function excluirTela(id){
+  const tela = projeto.telas.find(t => t.id === id);
+  if(!tela) return;
+  if(!confirm(`Excluir a tela "${tela.nome}"?`)) return;
+  projeto.telas = projeto.telas.filter(t => t.id !== id);
+  projeto.telas.forEach(t => { if(t.proximaTela === tela.nome) t.proximaTela = ""; });
+  salvar(); renderTelas();
+  toast("Tela excluída.");
+}
+function moverTela(id, delta){
+  const i = projeto.telas.findIndex(t => t.id === id);
+  const j = i + delta;
+  if(i < 0 || j < 0 || j >= projeto.telas.length) return;
+  const [t] = projeto.telas.splice(i, 1);
+  projeto.telas.splice(j, 0, t);
+  salvar(); renderTelas();
+}
+
+/* ============================================================
+   SEÇÃO 5 — DOCUMENTO FINAL
+   ============================================================ */
+function renderDocumento(){
+  const doc = $("#docPreview");
+  const data = new Date().toLocaleDateString("pt-BR", {day:"2-digit", month:"long", year:"numeric"});
+  const rfs = projeto.requisitos.filter(r => r.tipo === "RF");
+  const rnfs = projeto.requisitos.filter(r => r.tipo === "RNF");
+  let html = `
+  <div class="capa">
+    <div class="sistema">Documento de Engenharia de Requisitos</div>
+    <h1>${esc(projeto.nome || "Sistema sem nome")}</h1>
+    <div class="meta-capa">Gerado pelo ModelaSistema em ${data}</div>
+  </div>
+  <h2>1. Descrição do sistema</h2>
+  <p>${esc(projeto.descricao) || "<em>Descrição não informada.</em>"}</p>
+  ${projeto.objetivo ? `<p><b>Objetivo:</b> ${esc(projeto.objetivo)}</p>` : ""}
+  ${projeto.publicoAlvo ? `<p><b>Público-alvo:</b> ${esc(projeto.publicoAlvo)}</p>` : ""}
+  <h2>2. Atores</h2>
+  ${projeto.atores.length ? `<table><thead><tr><th>Ator</th><th>Descrição</th></tr></thead><tbody>${projeto.atores.map(a => `<tr><td><b>${esc(a.nome)}</b></td><td>${esc(a.descricao) || "—"}</td></tr>`).join("")}</tbody></table>` : "<p><em>Nenhum ator cadastrado.</em></p>"}
+  <h2>3. Casos de uso</h2>
+  ${projeto.casosUso.length ? projeto.casosUso.map(uc => `
+    <h3><span class="etiqueta-id">${esc(uc.id)}</span> ${esc(uc.nome)}</h3>
+    <p><b>Ator principal:</b> ${esc(uc.atorPrincipal) || "—"} · <b>Secundários:</b> ${esc((uc.atoresSecundarios||[]).join(", ")) || "—"}</p>
+    ${uc.descricao ? `<p>${esc(uc.descricao)}</p>` : ""}
+    ${uc.preCondicoes ? `<p><b>Pré-condições:</b> ${esc(uc.preCondicoes)}</p>` : ""}
+    ${uc.posCondicoes ? `<p><b>Pós-condições:</b> ${esc(uc.posCondicoes)}</p>` : ""}
+    ${uc.fluxoPrincipal && uc.fluxoPrincipal.length ? `<p><b>Fluxo principal:</b></p><ol>${uc.fluxoPrincipal.map(p => `<li>${esc(p)}</li>`).join("")}</ol>` : ""}
+    ${uc.fluxosAlternativos ? `<p><b>Fluxos alternativos:</b> ${esc(uc.fluxosAlternativos)}</p>` : ""}
+    ${uc.fluxosExcecao ? `<p><b>Fluxos de exceção:</b> ${esc(uc.fluxosExcecao)}</p>` : ""}
+    ${uc.requisitosRelacionados && uc.requisitosRelacionados.length ? `<p><b>Requisitos relacionados:</b> ${esc(uc.requisitosRelacionados.join(", "))}</p>` : ""}
+  `).join("") : "<p><em>Nenhum caso de uso cadastrado.</em></p>"}
+  <h2>4. Diagramas de atividades</h2>`;
+  const ucsComDiagrama = projeto.casosUso.filter(uc => {
+    const d = projeto.diagramas[uc.id];
+    return d && ((d.nos && d.nos.length) || (d.mermaidCode && d.mermaidCode.trim()));
+  });
+  html += ucsComDiagrama.length ? ucsComDiagrama.map(uc => {
+    const d = projeto.diagramas[uc.id];
+    const codigo = d.modo === "mermaid" && d.mermaidCode ? d.mermaidCode : nosParaMermaid(d.nos || []);
+    return `<h3>${esc(uc.id)} — ${esc(uc.nome)}</h3><div class="diagrama-doc"><pre>${esc(codigo)}</pre></div>`;
+  }).join("") : "<p><em>Nenhum diagrama de atividades cadastrado.</em></p>";
+  html += `
+  <h2>5. Requisitos funcionais</h2>
+  ${rfs.length ? `<table><thead><tr><th>ID</th><th>Título</th><th>Descrição</th><th>Prioridade</th><th>Status</th><th>Caso de uso</th></tr></thead><tbody>${rfs.map(r => `<tr><td>${esc(r.id)}</td><td><b>${esc(r.titulo)}</b></td><td>${esc(r.descricao) || "—"}</td><td>${esc(r.prioridade)}</td><td>${esc(r.status)}</td><td>${esc(r.casoUsoRelacionado) || "—"}</td></tr>`).join("")}</tbody></table>` : "<p><em>Nenhum requisito funcional cadastrado.</em></p>"}
+  <h2>6. Requisitos não funcionais</h2>
+  ${rnfs.length ? `<table><thead><tr><th>ID</th><th>Título</th><th>Categoria</th><th>Descrição</th><th>Prioridade</th><th>Status</th></tr></thead><tbody>${rnfs.map(r => `<tr><td>${esc(r.id)}</td><td><b>${esc(r.titulo)}</b></td><td>${esc(r.categoria) || "—"}</td><td>${esc(r.descricao) || "—"}</td><td>${esc(r.prioridade)}</td><td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>` : "<p><em>Nenhum requisito não funcional cadastrado.</em></p>"}
+  <h2>7. Roteiro do programa</h2>
+  ${projeto.telas.length ? projeto.telas.map((t, i) => `
+    <h3>${i + 1}. ${esc(t.nome)}</h3>
+    ${t.objetivo ? `<p><b>Objetivo:</b> ${esc(t.objetivo)}</p>` : ""}
+    ${t.ator ? `<p><b>Ator:</b> ${esc(t.ator)}</p>` : ""}
+    ${t.entradas ? `<p><b>Entradas do usuário:</b> ${esc(t.entradas)}</p>` : ""}
+    ${t.regrasNegocio ? `<p><b>Regras de negócio:</b> ${esc(t.regrasNegocio)}</p>` : ""}
+    ${t.saidas ? `<p><b>Saídas/mensagens:</b> ${esc(t.saidas)}</p>` : ""}
+    <p><b>Próxima tela:</b> ${esc(t.proximaTela) || "Fim"}</p>
+  `).join("") : "<p><em>Nenhuma tela cadastrada.</em></p>"}
+  ${projeto.narrativa ? `<h3>Narrativa do programa</h3><p>${esc(projeto.narrativa).replace(/\n/g, "<br>")}</p>` : ""}`;
+  doc.innerHTML = html;
+}
+function exportarJSON(){
+  baixarArquivo(JSON.stringify(projeto, null, 2), nomeArquivo(projeto.nome || "projeto", ".json"), "application/json;charset=utf-8");
+  toast("Projeto exportado em JSON.");
+}
+function exportarMarkdown(){
+  const rfs = projeto.requisitos.filter(r => r.tipo === "RF");
+  const rnfs = projeto.requisitos.filter(r => r.tipo === "RNF");
+  const md = [
+    "# " + (projeto.nome || "Sistema sem nome"),
+    "",
+    "## Descrição do sistema",
+    projeto.descricao || "_Não informada._",
+    "",
+    projeto.objetivo ? "**Objetivo:** " + projeto.objetivo : "",
+    projeto.publicoAlvo ? "**Público-alvo:** " + projeto.publicoAlvo : "",
+    "",
+    "## Atores",
+    projeto.atores.length ? projeto.atores.map(a => "- **" + a.nome + "**: " + (a.descricao || "")).join("\n") : "_Nenhum ator cadastrado._",
+    "",
+    "## Casos de uso",
+    projeto.casosUso.length ? projeto.casosUso.map(uc => [
+      "### " + uc.id + " — " + uc.nome,
+      "",
+      "- **Ator principal:** " + (uc.atorPrincipal || "—"),
+      "- **Atores secundários:** " + ((uc.atoresSecundarios || []).join(", ") || "—"),
+      uc.descricao ? "- **Descrição:** " + uc.descricao : "",
+      uc.preCondicoes ? "- **Pré-condições:** " + uc.preCondicoes : "",
+      uc.posCondicoes ? "- **Pós-condições:** " + uc.posCondicoes : "",
+      uc.fluxoPrincipal && uc.fluxoPrincipal.length ? "\n**Fluxo principal:**\n" + uc.fluxoPrincipal.map((p, i) => (i + 1) + ". " + p).join("\n") : "",
+      uc.fluxosAlternativos ? "- **Fluxos alternativos:** " + uc.fluxosAlternativos : "",
+      uc.fluxosExcecao ? "- **Fluxos de exceção:** " + uc.fluxosExcecao : "",
+      uc.requisitosRelacionados && uc.requisitosRelacionados.length ? "- **Requisitos relacionados:** " + uc.requisitosRelacionados.join(", ") : "",
+      ""
+    ].filter(Boolean).join("\n")).join("\n") : "_Nenhum caso de uso cadastrado._",
+    "",
+    "## Diagramas de atividades",
+    projeto.casosUso.map(uc => {
+      const d = projeto.diagramas[uc.id];
+      if(!d || (!d.nos?.length && !d.mermaidCode?.trim())) return "";
+      const codigo = d.modo === "mermaid" && d.mermaidCode ? d.mermaidCode : nosParaMermaid(d.nos || []);
+      return "### " + uc.id + " — " + uc.nome + "\n\n```mermaid\n" + codigo + "\n```";
+    }).filter(Boolean).join("\n\n") || "_Nenhum diagrama cadastrado._",
+    "",
+    "## Requisitos funcionais",
+    rfs.length ? rfs.map(r => "- **" + r.id + "** — " + r.titulo + " (" + r.prioridade + ", " + r.status + (r.casoUsoRelacionado ? ", " + r.casoUsoRelacionado : "") + ")" + (r.descricao ? ": " + r.descricao : "")).join("\n") : "_Nenhum requisito funcional._",
+    "",
+    "## Requisitos não funcionais",
+    rnfs.length ? rnfs.map(r => "- **" + r.id + "** — " + r.titulo + " [" + (r.categoria || "—") + "] (" + r.prioridade + ", " + r.status + ")" + (r.descricao ? ": " + r.descricao : "")).join("\n") : "_Nenhum requisito não funcional._",
+    "",
+    "## Roteiro do programa",
+    projeto.telas.length ? projeto.telas.map((t, i) => (i + 1) + ". **" + t.nome + "**" + (t.objetivo ? " — " + t.objetivo : "") + " → " + (t.proximaTela || "Fim")).join("\n") : "_Nenhuma tela cadastrada._",
+    "",
+    projeto.narrativa ? "## Narrativa do programa\n\n" + projeto.narrativa : ""
+  ].filter(l => l !== "").join("\n");
+  baixarArquivo(md, nomeArquivo(projeto.nome || "documento", ".md"), "text/markdown;charset=utf-8");
+  toast("Documento exportado em Markdown.");
+}
+function importarJSON(arquivo){
+  const leitor = new FileReader();
+  leitor.onload = () => {
+    try{
+      const dados = JSON.parse(leitor.result);
+      if(typeof dados !== "object" || dados === null) throw new Error("formato inválido");
+      projeto = Object.assign(projetoVazio(), dados);
+      salvar();
+      renderTudo();
+      toast("Projeto importado com sucesso.");
+    }catch(e){
+      toast("Arquivo JSON inválido. Verifique o conteúdo e tente novamente.", true);
+    }
+  };
+  leitor.onerror = () => toast("Não foi possível ler o arquivo.", true);
+  leitor.readAsText(arquivo);
+}
+
+/* ============================================================
+   PROJETO DE EXEMPLO — Sistema de Biblioteca
+   ============================================================ */
+function carregarExemplo(){
+  if(!confirm("Carregar o projeto de exemplo? Os dados atuais serão substituídos.")) return;
+  projeto = projetoVazio();
+  projeto.nome = "Sistema de Biblioteca";
+  projeto.descricao = "Sistema para gerenciar o acervo de uma biblioteca pública: catalogação de livros, empréstimos, devoluções e consulta ao catálogo por leitores e bibliotecários.";
+  projeto.objetivo = "Digitalizar o controle do acervo e dos empréstimos, reduzindo filas e perdas de livros.";
+  projeto.publicoAlvo = "Bibliotecários, leitores cadastrados e administradores da biblioteca.";
+  projeto.atores = [
+    {id: uid("ator"), nome: "Bibliotecário", descricao: "Responsável pelo acervo, catalogação e empréstimos."},
+    {id: uid("ator"), nome: "Leitor", descricao: "Usuário que consulta o catálogo e pega livros emprestados."},
+    {id: uid("ator"), nome: "Administrador", descricao: "Gerencia usuários e configurações do sistema."}
+  ];
+  projeto.casosUso = [
+    {id:"UC01", nome:"Cadastrar livro", atorPrincipal:"Bibliotecário", atoresSecundarios:[], descricao:"Registrar um novo livro no acervo com seus dados bibliográficos.", preCondicoes:"Bibliotecário autenticado.", posCondicoes:"Livro disponível para empréstimo.", fluxoPrincipal:["Bibliotecário informa ISBN, título, autor e editora","Sistema verifica se o ISBN já está cadastrado","Sistema salva o livro no acervo","Sistema confirma o cadastro"], fluxosAlternativos:"", fluxosExcecao:"ISBN duplicado: sistema informa o erro e não cadastra.", requisitosRelacionados:["RF01"]},
+    {id:"UC02", nome:"Emprestar livro", atorPrincipal:"Bibliotecário", atoresSecundarios:["Leitor"], descricao:"Registrar o empréstimo de um livro a um leitor.", preCondicoes:"Livro disponível e leitor com empréstimo ativo dentro do limite.", posCondicoes:"Livro marcado como emprestado com data de devolução.", fluxoPrincipal:["Bibliotecário informa o código do livro e do leitor","Sistema verifica a disponibilidade do livro","Sistema verifica o limite de empréstimos do leitor","Sistema registra o empréstimo com prazo de 14 dias","Sistema emite o comprovante"], fluxosAlternativos:"Leitor pode renovar o empréstimo uma vez, se não houver reserva.", fluxosExcecao:"Livro indisponível ou leitor no limite: sistema bloqueia e informa o motivo.", requisitosRelacionados:["RF02","RF03"]},
+    {id:"UC03", nome:"Devolver livro", atorPrincipal:"Bibliotecário", atoresSecundarios:["Leitor"], descricao:"Registrar a devolução de um livro emprestado.", preCondicoes:"Livro emprestado.", posCondicoes:"Livro novamente disponível.", fluxoPrincipal:["Bibliotecário informa o código do livro","Sistema localiza o empréstimo ativo","Sistema verifica atraso e calcula multa, se houver","Sistema baixa o empréstimo e libera o livro"], fluxosAlternativos:"", fluxosExcecao:"Livro sem empréstimo ativo: sistema informa e encerra.", requisitosRelacionados:["RF04"]},
+    {id:"UC04", nome:"Consultar catálogo", atorPrincipal:"Leitor", atoresSecundarios:[], descricao:"Buscar livros por título, autor, assunto ou ISBN.", preCondicoes:"Nenhuma.", posCondicoes:"Lista de resultados exibida.", fluxoPrincipal:["Leitor informa o termo de busca","Sistema pesquisa no catálogo","Sistema exibe os resultados com disponibilidade"], fluxosAlternativos:"Busca avançada com filtros combinados.", fluxosExcecao:"Nenhum resultado: sistema informa e sugere termos.", requisitosRelacionados:["RF05","RF06"]},
+    {id:"UC05", nome:"Gerenciar usuários", atorPrincipal:"Administrador", atoresSecundarios:[], descricao:"Cadastrar, editar e desativar usuários do sistema.", preCondicoes:"Administrador autenticado.", posCondicoes:"Usuário criado/atualizado/desativado.", fluxoPrincipal:["Administrador informa os dados do usuário","Sistema valida CPF e e-mail","Sistema salva o usuário com perfil de acesso"], fluxosAlternativos:"", fluxosExcecao:"Dados inválidos ou duplicados: sistema informa o erro.", requisitosRelacionados:["RF07","RF08"]}
+  ];
+  projeto.requisitos = [
+    {id:"RF01", tipo:"RF", titulo:"Cadastrar livros no acervo", descricao:"O sistema deve permitir cadastrar livros com ISBN, título, autor, editora, ano e exemplar.", prioridade:"Essencial", status:"Aprovado", casoUsoRelacionado:"UC01", categoria:""},
+    {id:"RF02", tipo:"RF", titulo:"Registrar empréstimos", descricao:"O sistema deve registrar empréstimos com livro, leitor e data de devolução (14 dias).", prioridade:"Essencial", status:"Aprovado", casoUsoRelacionado:"UC02", categoria:""},
+    {id:"RF03", tipo:"RF", titulo:"Controlar limite de empréstimos", descricao:"O sistema deve bloquear empréstimos quando o leitor atingir 3 livros ativos.", prioridade:"Essencial", status:"Proposto", casoUsoRelacionado:"UC02", categoria:""},
+    {id:"RF04", tipo:"RF", titulo:"Registrar devoluções e multas", descricao:"O sistema deve baixar empréstimos na devolução e calcular multa de R$ 1,00 por dia de atraso.", prioridade:"Essencial", status:"Aprovado", casoUsoRelacionado:"UC03", categoria:""},
+    {id:"RF05", tipo:"RF", titulo:"Consultar catálogo por título/autor", descricao:"O sistema deve permitir buscar livros por título, autor, assunto ou ISBN.", prioridade:"Essencial", status:"Implementado", casoUsoRelacionado:"UC04", categoria:""},
+    {id:"RF06", tipo:"RF", titulo:"Exibir disponibilidade do livro", descricao:"O sistema deve indicar se cada livro está disponível, emprestado ou reservado.", prioridade:"Importante", status:"Aprovado", casoUsoRelacionado:"UC04", categoria:""},
+    {id:"RF07", tipo:"RF", titulo:"Gerenciar usuários e perfis", descricao:"O sistema deve permitir cadastrar usuários com perfil (bibliotecário, leitor, administrador).", prioridade:"Essencial", status:"Proposto", casoUsoRelacionado:"UC05", categoria:""},
+    {id:"RF08", tipo:"RF", titulo:"Autenticação de usuários", descricao:"O sistema deve exigir login com e-mail e senha para áreas restritas.", prioridade:"Essencial", status:"Aprovado", casoUsoRelacionado:"UC05", categoria:""},
+    {id:"RNF01", tipo:"RNF", titulo:"Tempo de resposta da busca", descricao:"A consulta ao catálogo deve retornar em menos de 2 segundos com até 10 mil livros.", prioridade:"Importante", status:"Proposto", casoUsoRelacionado:"", categoria:"Desempenho"},
+    {id:"RNF02", tipo:"RNF", titulo:"Proteção de dados pessoais", descricao:"Senhas devem ser armazenadas com hash e dados de leitores protegidos conforme a LGPD.", prioridade:"Essencial", status:"Aprovado", casoUsoRelacionado:"", categoria:"Segurança"},
+    {id:"RNF03", tipo:"RNF", titulo:"Interface simples e acessível", descricao:"A interface deve ser utilizável por leitores com pouca experiência, com contraste adequado e navegação por teclado.", prioridade:"Importante", status:"Proposto", casoUsoRelacionado:"", categoria:"Usabilidade"},
+    {id:"RNF04", tipo:"RNF", titulo:"Disponibilidade do catálogo", descricao:"O catálogo online deve estar disponível 99% do tempo em horário comercial.", prioridade:"Desejável", status:"Proposto", casoUsoRelacionado:"", categoria:"Disponibilidade"},
+    {id:"RNF05", tipo:"RNF", titulo:"Backup diário do acervo", descricao:"Os dados do acervo e empréstimos devem ter backup automático diário com retenção de 30 dias.", prioridade:"Importante", status:"Proposto", casoUsoRelacionado:"", categoria:"Confiabilidade"}
+  ];
+  projeto.telas = [
+    {id: uid("tela"), nome:"Tela de login", objetivo:"Autenticar o usuário no sistema.", ator:"Leitor", entradas:"E-mail e senha.", regrasNegocio:"Bloquear após 5 tentativas incorretas.", saidas:"Mensagem de erro ou entrada no sistema.", proximaTela:"Tela inicial (catálogo)"},
+    {id: uid("tela"), nome:"Tela inicial (catálogo)", objetivo:"Consultar livros e ver novidades.", ator:"Leitor", entradas:"Termo de busca e filtros.", regrasNegocio:"Busca com no mínimo 2 caracteres.", saidas:"Lista de livros com disponibilidade.", proximaTela:"Detalhes do livro"},
+    {id: uid("tela"), nome:"Detalhes do livro", objetivo:"Ver dados completos e solicitar empréstimo/reserva.", ator:"Leitor", entradas:"Botões 'Emprestar' ou 'Reservar'.", regrasNegocio:"Empréstimo só para livro disponível e leitor dentro do limite.", saidas:"Confirmação do empréstimo ou mensagem de indisponibilidade.", proximaTela:"Meus empréstimos"},
+    {id: uid("tela"), nome:"Meus empréstimos", objetivo:"Acompanhar livros emprestados e prazos.", ator:"Leitor", entradas:"Botão 'Renovar' (quando permitido).", regrasNegocio:"Renovação permitida uma vez, sem reserva de outro leitor.", saidas:"Lista com prazos e multas, se houver.", proximaTela:""}
+  ];
+  projeto.narrativa = "O leitor abre o sistema e faz login na tela de login. Na tela inicial (catálogo), ele busca um livro pelo título e abre os detalhes do livro. Se estiver disponível, solicita o empréstimo; o sistema confirma e registra o prazo de 14 dias. Na tela Meus empréstimos, o leitor acompanha o prazo e pode renovar uma vez. Ao devolver, o bibliotecário registra a devolução e o livro volta a ficar disponível no catálogo.";
+  // Diagrama de atividades de exemplo para o UC02 (Emprestar livro)
+  const nosExemplo = [
+    {id: uid("no"), tipo:"inicio", texto:"Início", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""},
+    {id: uid("no"), tipo:"acao", texto:"Informar código do livro e do leitor", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""},
+    {id: uid("no"), tipo:"decisao", texto:"Livro disponível?", simTexto:"Sim", naoTexto:"Não", simDestino:"", naoDestino:"", proximo:""},
+    {id: uid("no"), tipo:"decisao", texto:"Leitor dentro do limite?", simTexto:"Sim", naoTexto:"Não", simDestino:"", naoDestino:"", proximo:""},
+    {id: uid("no"), tipo:"acao", texto:"Registrar empréstimo (14 dias)", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""},
+    {id: uid("no"), tipo:"acao", texto:"Emitir comprovante", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""},
+    {id: uid("no"), tipo:"acao", texto:"Informar motivo do bloqueio", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""},
+    {id: uid("no"), tipo:"fim", texto:"Fim", simTexto:"", naoTexto:"", simDestino:"", naoDestino:"", proximo:""}
+  ];
+  // Ligações explícitas do exemplo: decisões apontam para ação de sucesso ou bloqueio
+  nosExemplo[2].simDestino = nosExemplo[3].id;
+  nosExemplo[2].naoDestino = nosExemplo[6].id;
+  nosExemplo[3].simDestino = nosExemplo[4].id;
+  nosExemplo[3].naoDestino = nosExemplo[6].id;
+  nosExemplo[4].proximo = nosExemplo[5].id;
+  nosExemplo[5].proximo = nosExemplo[7].id;
+  nosExemplo[6].proximo = nosExemplo[7].id;
+  projeto.diagramas = {"UC02": {modo:"visual", nos: nosExemplo, mermaidCode:""}};
+  salvar();
+  renderTudo();
+  toast("Exemplo 'Sistema de Biblioteca' carregado.");
+}
+function limparProjeto(){
+  if(!confirm("Limpar todo o projeto? Todos os dados atuais serão apagados.")) return;
+  projeto = projetoVazio();
+  salvar();
+  renderTudo();
+  toast("Projeto limpo.");
+}
+
+/* ============================================================
+   MODAIS E SELETORES DEPENDENTES
+   ============================================================ */
+function abrirModal(id){ $("#" + id).classList.add("aberto"); const f = $("#" + id + " input, #" + id + " select, #" + id + " textarea"); if(f) f.focus(); }
+function fecharModal(id){ $("#" + id).classList.remove("aberto"); }
+function renderSeletoresDependentes(){
+  // Mantém selects de atores/casos de uso sincronizados após mudanças
+  renderSeletorAtividades();
+  renderRequisitos();
+  renderTelas();
+}
+
+/* ============================================================
+   RENDERIZAÇÃO GERAL E INICIALIZAÇÃO
+   ============================================================ */
+function renderTudo(){
+  renderProjeto();
+  renderCasosUso();
+  renderSeletorAtividades();
+  renderRequisitos();
+  renderTelas();
+  $("#narrativa").value = projeto.narrativa || "";
+  renderDocumento();
+  atualizarCompletude();
+}
+function ligarEventos(){
+  // Navegação
+  $$(".nav-item").forEach(b => b.addEventListener("click", () => mostrarSecao(b.dataset.secao)));
+  // Tema
+  $("#btnTema").addEventListener("click", () => {
+    const atual = document.documentElement.getAttribute("data-theme");
+    aplicarTema(atual === "dark" ? "light" : "dark");
+    renderPreviewAtividades();
+  });
+  // Projeto (salvamento automático ao digitar + validação no submit)
+  ["nomeSistema","descricaoSistema","objetivoSistema","publicoSistema"].forEach(id => {
+    $("#" + id).addEventListener("input", () => { lerProjetoDoForm(); salvar(); });
+  });
+  $("#formProjeto").addEventListener("submit", e => {
+    e.preventDefault();
+    lerProjetoDoForm();
+    let ok = true;
+    if(!projeto.nome){ $("#campoNome").classList.add("invalido"); ok = false; } else $("#campoNome").classList.remove("invalido");
+    if(!projeto.descricao){ $("#campoDescricao").classList.add("invalido"); ok = false; } else $("#campoDescricao").classList.remove("invalido");
+    if(!ok){ toast("Preencha nome e descrição do sistema.", true); return; }
+    salvar(); toast("Projeto salvo.");
+  });
+  $("#formAtor").addEventListener("submit", salvarAtor);
+  // Casos de uso
+  $("#btnNovoUC").addEventListener("click", () => abrirModalUC(null));
+  $("#formUC").addEventListener("submit", salvarUC);
+  $("#btnVerUC").addEventListener("click", () => { verUCTabela = !verUCTabela; renderCasosUso(); });
+  $("#btnBaixarDiagramaUC").addEventListener("click", () => {
+    const svg = $("#diagramaUC").dataset.svg;
+    if(!svg){ toast("Nada para exportar.", true); return; }
+    baixarArquivo(svg, nomeArquivo("diagrama-casos-uso", ".svg"), "image/svg+xml;charset=utf-8");
+    toast("Diagrama de casos de uso exportado.");
+  });
+  // Atividades
+  $("#selCasoUsoAtividade").addEventListener("change", renderEditorAtividades);
+  $("#modoVisual").addEventListener("click", () => { if(modoEditor !== "visual"){ modoEditor = "visual"; const ucId = $("#selCasoUsoAtividade").value; if(ucId) diagramaDe(ucId).modo = "visual"; salvar(); renderEditorAtividades(); } });
+  $("#modoMermaid").addEventListener("click", () => {
+    if(modoEditor !== "mermaid"){
+      const ucId = $("#selCasoUsoAtividade").value;
+      if(ucId){
+        const diag = diagramaDe(ucId);
+        if(!diag.mermaidCode) diag.mermaidCode = nosParaMermaid(diag.nos);
+        diag.modo = "mermaid";
+      }
+      modoEditor = "mermaid"; salvar(); renderEditorAtividades();
+    }
+  });
+  $("#codigoMermaid").addEventListener("input", () => {
+    const ucId = $("#selCasoUsoAtividade").value;
+    if(ucId){ diagramaDe(ucId).mermaidCode = $("#codigoMermaid").value; salvar(); }
+    renderPreviewAtividades();
+  });
+  $$("[data-add-no]").forEach(b => b.addEventListener("click", () => adicionarNo(b.dataset.addNo)));
+  $("#btnRascunho").addEventListener("click", gerarRascunho);
+  $("#btnExportarSVG").addEventListener("click", exportarSVGAtividades);
+  $("#btnExportarPNG").addEventListener("click", exportarPNGAtividades);
+  // Requisitos
+  $("#abaRF").addEventListener("click", () => { abaRequisito = "RF"; $("#abaRF").classList.add("ativa"); $("#abaRNF").classList.remove("ativa"); $("#abaRF").setAttribute("aria-selected","true"); $("#abaRNF").setAttribute("aria-selected","false"); renderRequisitos(); });
+  $("#abaRNF").addEventListener("click", () => { abaRequisito = "RNF"; $("#abaRNF").classList.add("ativa"); $("#abaRF").classList.remove("ativa"); $("#abaRNF").setAttribute("aria-selected","true"); $("#abaRF").setAttribute("aria-selected","false"); renderRequisitos(); });
+  ["filtroBusca","filtroPrioridade","filtroCategoria","filtroStatus"].forEach(id => $("#" + id).addEventListener("input", renderRequisitos));
+  $("#btnNovoRequisito").addEventListener("click", () => abrirModalReq(null));
+  $("#formReq").addEventListener("submit", salvarReq);
+  // Roteiro
+  $("#btnNovaTela").addEventListener("click", () => abrirModalTela(null));
+  $("#formTela").addEventListener("submit", salvarTela);
+  $("#btnSalvarNarrativa").addEventListener("click", () => { projeto.narrativa = $("#narrativa").value.trim(); salvar(); toast("Narrativa salva."); });
+  $("#narrativa").addEventListener("input", () => { projeto.narrativa = $("#narrativa").value; salvar(); });
+  // Documento final
+  $("#btnImprimir").addEventListener("click", () => { renderDocumento(); window.print(); });
+  $("#btnExportarJSONDoc").addEventListener("click", exportarJSON);
+  $("#btnExportarMD").addEventListener("click", exportarMarkdown);
+  $("#btnAtualizarDoc").addEventListener("click", () => { renderDocumento(); toast("Pré-visualização atualizada."); });
+  // Importar / Exportar / Exemplo / Limpar (topo e rodapé)
+  const importar = () => $("#arquivoImportar").click();
+  $("#arquivoImportar").addEventListener("change", e => { if(e.target.files[0]) importarJSON(e.target.files[0]); e.target.value = ""; });
+  ["btnImportar","btnImportarTopo"].forEach(id => $("#" + id).addEventListener("click", importar));
+  ["btnExportar","btnExportarTopo"].forEach(id => $("#" + id).addEventListener("click", exportarJSON));
+  ["btnExemplo","btnExemploTopo"].forEach(id => $("#" + id).addEventListener("click", carregarExemplo));
+  $("#btnLimpar").addEventListener("click", limparProjeto);
+  // Fechar modais
+  $$("[data-fechar]").forEach(b => b.addEventListener("click", () => fecharModal(b.dataset.fechar)));
+  $$(".modal-fundo").forEach(f => f.addEventListener("click", e => { if(e.target === f) f.classList.remove("aberto"); }));
+  document.addEventListener("keydown", e => { if(e.key === "Escape") $$(".modal-fundo.aberto").forEach(f => f.classList.remove("aberto")); });
+  // Delegação de cliques dinâmicos (listas renderizadas via JS)
+  document.addEventListener("click", e => {
+    const alvo = e.target.closest("[data-editar-ator],[data-excluir-ator],[data-editar-uc],[data-excluir-uc],[data-diagramar-uc],[data-editar-req],[data-excluir-req],[data-editar-tela],[data-excluir-tela],[data-tela-mover],[data-no-excluir],[data-no-mover]");
+    if(!alvo) return;
+    if(alvo.dataset.editarAtor) editarAtor(alvo.dataset.editarAtor);
+    else if(alvo.dataset.excluirAtor) excluirAtor(alvo.dataset.excluirAtor);
+    else if(alvo.dataset.editarUc) abrirModalUC(projeto.casosUso.find(u => u.id === alvo.dataset.editarUc));
+    else if(alvo.dataset.excluirUc) excluirUC(alvo.dataset.excluirUc);
+    else if(alvo.dataset.diagramarUc){ $("#selCasoUsoAtividade").value = alvo.dataset.diagramarUc; mostrarSecao("atividades"); renderEditorAtividades(); }
+    else if(alvo.dataset.editarReq) abrirModalReq(projeto.requisitos.find(r => r.id === alvo.dataset.editarReq));
+    else if(alvo.dataset.excluirReq) excluirReq(alvo.dataset.excluirReq);
+    else if(alvo.dataset.editarTela) abrirModalTela(projeto.telas.find(t => t.id === alvo.dataset.editarTela));
+    else if(alvo.dataset.excluirTela) excluirTela(alvo.dataset.excluirTela);
+    else if(alvo.dataset.telaMover !== undefined) moverTela(alvo.dataset.telaId, parseInt(alvo.dataset.telaMover, 10));
+    else if(alvo.dataset.noExcluir) excluirNo(alvo.dataset.noExcluir);
+    else if(alvo.dataset.noMover !== undefined) moverNo(alvo.dataset.noId, parseInt(alvo.dataset.noMover, 10));
+  });
+  // Edição inline dos nós do editor visual
+  document.addEventListener("input", e => {
+    const campo = e.target.closest("[data-no-campo]");
+    if(!campo) return;
+    const ucId = $("#selCasoUsoAtividade").value;
+    if(!ucId) return;
+    const no = diagramaDe(ucId).nos.find(n => n.id === campo.dataset.noId);
+    if(no){ no[campo.dataset.noCampo] = campo.value; salvar(); renderPreviewAtividades(); }
+  });
+  document.addEventListener("change", e => {
+    const campo = e.target.closest("[data-no-campo]");
+    if(!campo) return;
+    const ucId = $("#selCasoUsoAtividade").value;
+    if(!ucId) return;
+    const no = diagramaDe(ucId).nos.find(n => n.id === campo.dataset.noId);
+    if(no){ no[campo.dataset.noCampo] = campo.value; salvar(); renderNos(); renderPreviewAtividades(); }
+  });
+}
+
+/* ---------- Inicialização ---------- */
+document.addEventListener("DOMContentLoaded", () => {
+  aplicarTema(temaInicial());
+  carregar();
+  ligarEventos();
+  renderTudo();
+  mostrarSecao("projeto");
+});
+</script>
+</body>
+</html>
