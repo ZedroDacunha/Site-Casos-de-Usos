@@ -355,15 +355,15 @@ function geomAtor(w,h){
 function ancoras(no){
   const {w,h}=dimsPadrao(no.tipo);
   const cx=no.x+w/2, cy=no.y+h/2;
-  // ator: âncoras alinhadas às bordas do retângulo invisível que abraça a figura
-  // (topo da cabeça, pontas dos braços, base das pernas)
+  // ator: as âncoras ficam nos 4 cantos do retângulo invisível que abraça a figura,
+  // formando um retângulo alinhado e claro ao redor do bonequinho
   if(no.tipo==="ator"){
     const g=geomAtor(w,h);
     return {
-      topo:{x:cx,y:no.y+g.y0},      // topo da cabeça
-      direita:{x:no.x+g.x1,y:no.y+g.armY}, // ponta do braço direito
-      inferior:{x:cx,y:no.y+g.y1}, // base das pernas
-      esquerda:{x:no.x+g.x0,y:no.y+g.armY} // ponta do braço esquerdo
+      topo:{x:no.x+g.x0,y:no.y+g.y0},       // canto superior esquerdo
+      direita:{x:no.x+g.x1,y:no.y+g.y0},   // canto superior direito
+      inferior:{x:no.x+g.x1,y:no.y+g.y1},  // canto inferior direito
+      esquerda:{x:no.x+g.x0,y:no.y+g.y1}   // canto inferior esquerdo
     };
   }
   // demais blocos: âncoras alinhadas às bordas do box
