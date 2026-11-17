@@ -200,7 +200,7 @@ body{
 .conector-marca{font-size:11.5px;font-weight:700;fill:var(--texto-2);pointer-events:none;font-family:inherit}
 .conector-marca.include{fill:var(--sucesso)}
 .conector-marca.extend{fill:var(--aviso)}
-.ancora{fill:var(--panel);stroke:var(--primario);stroke-width:2;cursor:crosshair;opacity:0;transition:opacity .1s ease}
+.ancora{fill:var(--primario);stroke:var(--panel);stroke-width:2;cursor:crosshair;opacity:0;transition:opacity .1s ease}
 .no-grp.selecionado .ancora,.no-grp:hover .ancora{opacity:1}
 /* ---------- Responsivo ---------- */
 @media (max-width:860px){

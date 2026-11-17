@@ -454,6 +454,7 @@ function render(){
 
 /* ---------- Interação: cliques ---------- */
 function clickNo(no,ev){
+  if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
   if(estado.ferramenta==="conectar"){
     if(!estado.origemConexao){
       estado.origemConexao=no.id; render();
@@ -550,13 +551,16 @@ svg.addEventListener("pointerdown",ev=>{
   }
 });
 let arrastagem=null;
+// true quando o usuário realmente arrastou (movimento acima do limite) — usado para
+// ignorar o clique que o browser dispara após o arrasto, em qualquer ferramenta
+let arrastoReal=false;
 svg.addEventListener("pointerdown",ev=>{
   const grp=ev.target.closest(".no-grp");
   if(!grp) return;
   const d=diagramaAtual(); if(!d) return;
   const no=d.no.find(n=>n.id===grp.getAttribute("data-id"));
   if(!no) return;
-  if(estado.ferramenta==="conectar") return;
+  // arrasto funciona em qualquer ferramenta (selecionar, conectar, seta, texto)
   if(!estado.selecionados.has(no.id)){
     if(!ev.shiftKey){ estado.selecionados.clear(); estado.setaSelecionada=null; }
     estado.selecionados.add(no.id); render();
@@ -565,12 +569,15 @@ svg.addEventListener("pointerdown",ev=>{
   const originais=new Map();
   for(const n of d.no.filter(n=>estado.selecionados.has(n.id))) originais.set(n.id,{x:n.x,y:n.y});
   arrastagem={p0,originais};
+  arrastoReal=false;
   try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
 });
 svg.addEventListener("pointermove",ev=>{
   if(!arrastagem) return;
   const p=posMundo(ev.clientX,ev.clientY);
   const dx=p.x-arrastagem.p0.x, dy=p.y-arrastagem.p0.y;
+  // limite mínimo de movimento para considerar um arrasto real (e não um clique)
+  if(Math.abs(dx)>3||Math.abs(dy)>3) arrastoReal=true;
   for(const [id,o] of arrastagem.originais){
     const n=diagramaAtual().no.find(x=>x.id===id);
     if(n){ n.x=Math.round(o.x+dx); n.y=Math.round(o.y+dy); }
@@ -581,6 +588,7 @@ const fimArrasto=()=>{ if(arrastagem){ arrastagem=null; salvarLocal(); } };
 svg.addEventListener("pointerup",fimArrasto);
 svg.addEventListener("pointercancel",fimArrasto);
 svg.addEventListener("click",ev=>{
+  if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
   if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")) return;
   if(estado.ferramenta==="conectar"&&estado.origemConexao){ estado.origemConexao=null; render(); }
   else{ estado.selecionados.clear(); estado.setaSelecionada=null; render(); }
