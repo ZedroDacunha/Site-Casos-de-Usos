@@ -207,6 +207,10 @@ body{
 .conector{fill:none;stroke:var(--texto-2);stroke-width:1.8;cursor:pointer}
 .conector:hover{stroke:var(--primario);stroke-width:2.4}
 .conector.selecionado{stroke:var(--primario);stroke-width:2.6}
+/* área de clique ampla da seta (linha fina é difícil de clicar) */
+.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:all;cursor:pointer}
+/* caixas de rótulo das conexões (cores via classe, não atributo) */
+.conector-caixa{fill:var(--panel);stroke:var(--borda)}
 .conector-marca{font-size:11.5px;font-weight:700;fill:var(--texto-2);pointer-events:none;font-family:inherit}
 .conector-marca.include{fill:var(--sucesso)}
 .conector-marca.extend{fill:var(--aviso)}

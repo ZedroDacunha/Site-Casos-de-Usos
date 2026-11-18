@@ -370,6 +370,21 @@ function ancoras(no,grupo,w,h){
     inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
   };
 }
+/* pontos de conexão sem depender do DOM (usa o box de dimsPadrao + geomAtor).
+   Usado no bbox de exportação, onde não há grupo renderizado para consultar getBBox */
+function ancorasDados(no){
+  const {w,h}=dimsPadrao(no.tipo);
+  let esquerda=0, direita=w, topo=0, inferior=h, meioY=h/2;
+  if(no.tipo==="ator"){
+    const g=geomAtor(w,h);
+    esquerda=g.x0; direita=g.x1; topo=g.y0; inferior=g.y1; meioY=g.armY;
+  }
+  const cx=no.x+(esquerda+direita)/2, cy=no.y+meioY;
+  return {
+    topo:{x:cx,y:no.y+topo}, direita:{x:no.x+direita,y:cy},
+    inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
+  };
+}
 function parAncoras(aa,ba){
   const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
               ["topo","direita"],["direita","topo"],["inferior","esquerda"],["esquerda","inferior"]];
@@ -387,9 +402,28 @@ function caminhoL(p1,p2){
   if(Math.abs(dx)>=Math.abs(dy)) return `M ${p1.x} ${p1.y} L ${p2.x} ${p1.y} L ${p2.x} ${p2.y}`;
   return `M ${p1.x} ${p1.y} L ${p1.x} ${p2.y} L ${p2.x} ${p2.y}`;
 }
+/* ponto médio do caminho desenhado (não do segmento entre as âncoras) — usado para
+   posicionar o rótulo exatamente no meio da seta, mesmo em linhas em L */
+function pontoMeio(p1,p2){
+  const dx=p2.x-p1.x, dy=p2.y-p1.y;
+  const adx=Math.abs(dx), ady=Math.abs(dy);
+  if(adx<1&&ady<1) return {x:p1.x,y:p1.y};
+  const total=adx+ady, meio=total/2;
+  if(adx>=ady){
+    if(meio<=adx) return {x:p1.x+(dx>0?meio:-meio), y:p1.y};
+    return {x:p2.x, y:p1.y+(dy>0?(meio-adx):-(meio-adx))};
+  }
+  if(meio<=ady) return {x:p1.x, y:p1.y+(dy>0?meio:-meio)};
+  return {x:p1.x+(dx>0?(meio-ady):-(meio-ady)), y:p2.y};
+}
 
 function render(){
   const d=diagramaAtual(); if(!d) return;
+  // remove conexões órfãs (um dos blocos não existe mais) — evita setas invisíveis
+  // que não podem ser clicadas nem excluídas
+  const antesSetas=d.seta.length;
+  d.seta=d.seta.filter(s=>d.no.some(n=>n.id===s.de)&&d.no.some(n=>n.id===s.para));
+  if(d.seta.length!==antesSetas) salvarLocal();
   const pontosPorNo=new Map();
   camadaNos.innerHTML="";
   for(const no of d.no){
@@ -463,12 +497,14 @@ function render(){
     const semSeta=s.tipo==="geralizacao";
     const marcaFinal=semSeta?"":(sel?"url(#setaMarkerSel)":"url(#setaMarker)");
     const marca=(s.tipo==="include"||s.tipo==="extend")?`<<${s.tipo}>>`:"";
-    const lblX=(par.p1.x+par.p2.x)/2, lblY=(par.p1.y+par.p2.y)/2;
-    let html=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" marker-end="${marcaFinal}" ${s.tipo==="geralizacao"?'stroke-dasharray="6 5"':""}/>`;
-    if(marca) html+=`<rect x="${lblX-28}" y="${lblY-9}" width="56" height="16" rx="4" fill="var(--panel)" stroke="var(--borda)"/>
+    const meio=pontoMeio(par.p1,par.p2);
+    const lblX=meio.x, lblY=meio.y;
+    let html=`<path class="conector-hit" d="${dPath}"/>`;
+    html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" marker-end="${marcaFinal}" ${s.tipo==="geralizacao"?'stroke-dasharray="6 5"':""}/>`;
+    if(marca) html+=`<rect class="conector-caixa" x="${lblX-28}" y="${lblY-9}" width="56" height="16" rx="4"/>
                      <text class="conector-marca ${s.tipo}" x="${lblX}" y="${lblY+4}" text-anchor="middle">${marca}</text>`;
     if(s.rotulo&&s.rotulo.trim()){
-      html+=`<rect x="${lblX-s.rotulo.length*3.6-6}" y="${lblY-22}" width="${s.rotulo.length*7.2+12}" height="18" rx="6" fill="var(--panel)" stroke="var(--borda)" opacity=".95"/>
+      html+=`<rect class="conector-caixa" x="${lblX-s.rotulo.length*3.6-6}" y="${lblY-22}" width="${s.rotulo.length*7.2+12}" height="18" rx="6" opacity=".95"/>
              <text class="conector-marca" x="${lblX}" y="${lblY-8}" text-anchor="middle">${esc(s.rotulo)}</text>`;
     }
     const g=document.createElementNS("http://www.w3.org/2000/svg","g");
@@ -689,6 +725,18 @@ function bboxDoCanvas(){
     if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
     if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
   }
+  // inclui as caixas de rótulo das setas (marca include/extend e rótulo do usuário)
+  for(const s of d.seta){
+    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
+    if(!a||!b) continue;
+    const par=parAncoras(ancorasDados(a),ancorasDados(b));
+    const m=pontoMeio(par.p1,par.p2);
+    let meia=0;
+    if(s.tipo==="include"||s.tipo==="extend") meia=28;
+    if(s.rotulo&&s.rotulo.trim()) meia=Math.max(meia, s.rotulo.length*3.6+6);
+    minX=Math.min(minX,m.x-meia); maxX=Math.max(maxX,m.x+meia);
+    minY=Math.min(minY,m.y-22); maxY=Math.max(maxY,m.y+8);
+  }
   if(!isFinite(minX)){ minX=0;minY=0;maxX=800;maxY=600; }
   const PAD=60;
   return {x:minX-PAD,y:minY-PAD,w:maxX-minX+PAD*2,h:maxY-minY+PAD*2};
@@ -711,6 +759,8 @@ function cssExport(){
 .forma-ator{fill:none;stroke:var(--texto-2)}
 .no-texto{fill:var(--texto);font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
 .conector{fill:none;stroke:var(--texto-2);stroke-width:1.8}
+.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:all;cursor:pointer}
+.conector-caixa{fill:var(--panel);stroke:var(--borda)}
 .conector-marca{font-size:11.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
 .conector-marca.include{fill:var(--sucesso)}
 .conector-marca.extend{fill:var(--aviso)}
@@ -726,6 +776,8 @@ function construirSVGExport(){
   clone.querySelector("#gradePlano")?.remove();
   const contNos=clone.querySelector("#camadaNos");
   if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alinha-ator").forEach(n=>n.remove());
+  const contSetas=clone.querySelector("#camadaConexoes");
+  if(contSetas) contSetas.querySelectorAll(".conector-hit").forEach(n=>n.remove());
   clone.setAttribute("viewBox",`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
   clone.setAttribute("width",bb.w); clone.setAttribute("height",bb.h);
   // injeta os estilos (variáveis do tema + classes) para o SVG standalone renderizar correto
