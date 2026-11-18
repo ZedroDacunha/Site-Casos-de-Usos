@@ -605,9 +605,15 @@ function render(){
     g.appendChild(alinha);
   }
     g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
-    // duplo-clique seleciona o bloco (qualquer ferramenta, incluse conectar),
-    // sem interferir no fluxo de conexão — o clique simples mantém seu papel
-    g.ondblclick=ev=>{ ev.stopPropagation(); selecionarNo(no,ev); };
+    // duplo-clique: seleciona e abre a edição inline do texto (trocar o nome
+    // diretamente na caixa) — qualquer ferramenta, incluse conectar. O clique
+    // simples mantém seu papel (selecionar / definir origem-destino).
+    // Com Shift, apenas seleciona (adiciona/remove) sem abrir a edição.
+    g.ondblclick=ev=>{
+      ev.stopPropagation();
+      selecionarNo(no,ev);
+      if(!(ev&&ev.shiftKey)) abrirInline(no);
+    };
   }
   camadaSetasFundo.innerHTML="";
   camadaConexoes.innerHTML="";
