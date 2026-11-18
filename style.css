@@ -202,6 +202,7 @@ body{
 /* retângulo invisível ao redor do ator: guia de alinhamento das âncoras (não é visível) */
 .alinha-ator{fill:none;stroke:none;pointer-events:none}
 .no-grp.selecionado .forma-pre{stroke:var(--primario);stroke-width:2.6}
+.no-grp.origem .forma-pre{stroke:var(--aviso);stroke-width:2.8}
 .no-grp:hover .forma-pre{stroke:var(--primario-2)}
 .no-texto{font-family:"Segoe UI",system-ui,sans-serif;fill:var(--texto);user-select:none;pointer-events:none}
 .conector{fill:none;stroke:var(--texto-2);stroke-width:1.8;cursor:pointer}

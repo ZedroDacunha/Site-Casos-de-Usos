@@ -429,7 +429,8 @@ function render(){
   for(const no of d.no){
     const {w,h}=dimsPadrao(no.tipo);
     const g=document.createElementNS("http://www.w3.org/2000/svg","g");
-    g.setAttribute("class","no-grp"+(estado.selecionados.has(no.id)?" selecionado":""));
+    const origemAtiva=estado.ferramenta==="conectar"&&estado.origemConexao===no.id;
+    g.setAttribute("class","no-grp"+(estado.selecionados.has(no.id)?" selecionado":"")+(origemAtiva?" origem":""));
     g.setAttribute("transform",`translate(${no.x},${no.y})`);
     g.setAttribute("data-id",no.id);
     g.innerHTML=formaSVG(no.tipo,w,h);
@@ -638,6 +639,11 @@ svg.addEventListener("pointerdown",ev=>{
   const d=diagramaAtual(); if(!d) return;
   const no=d.no.find(n=>n.id===grp.getAttribute("data-id"));
   if(!no) return;
+  // Em conectar, NÃO inicia arrasto e NÃO captura o ponteiro: com setPointerCapture o
+  // evento click é redirecionado para o svg (elemento capturante) e nunca chega ao
+  // grupo do bloco, então a conexão nunca é criada. O clique precisa chegar ao
+  // grupo normalmente para acionar clickNo (origem -> destino -> seta).
+  if(estado.ferramenta==="conectar") return;
   // arrasto funciona em qualquer ferramenta (selecionar, conectar, seta, texto)
   if(!estado.selecionados.has(no.id)){
     // seleciona sem rebuildar o DOM: evita remover o alvo do ponteiro antes do capture
