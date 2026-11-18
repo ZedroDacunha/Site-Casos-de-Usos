@@ -642,7 +642,38 @@ function render(){
     if(estado.setaSelecionada) txt.push("1 seta selecionada");
     info.textContent=txt.join(" • ")+" — arraste para mover, Excluir para remover";
   }else info.hidden=true;
+  atualizarCampoNomeAtor();
 }
+
+/* ---------- Campo de nome do ator ----------
+   Mostra na barra do editor um campo "Nome do ator" quando um único ator
+   esta selecionado. O texto digitado vira o rotulo exibido abaixo do
+   bonequinho (mesmo rotulo editado pelo duplo-clique), salvo no localStorage.
+*/
+function atualizarCampoNomeAtor(force){
+  const d=diagramaAtual();
+  const grupo=document.getElementById("grupoNomeAtor");
+  const campo=document.getElementById("campoNomeAtor");
+  if(!d){ if(grupo) grupo.style.display="none"; return; }
+  const ids=[...estado.selecionados];
+  const ator=ids.length===1 && d.no.find(n=>n.id===ids[0]&&n.tipo==="ator");
+  if(!ator){ if(grupo) grupo.style.display="none"; return; }
+  grupo.style.display="flex";
+  const no=d.no.find(n=>n.id===ids[0]);
+  // nao reinicia o valor enquanto o usuario esta digitando (evita perder o foco);
+  // force = atualiza mesmo assim (ex.: texto editado por duplo-clique)
+  if(force||document.activeElement!==campo) campo.value=no.texto||"";
+}
+document.getElementById("campoNomeAtor").addEventListener("input",e=>{
+  const d=diagramaAtual();
+  if(!d) return;
+  const ids=[...estado.selecionados];
+  if(ids.length!==1) return;
+  const no=d.no.find(n=>n.id===ids[0]);
+  if(!no||no.tipo!=="ator") return;
+  no.texto=e.target.value;
+  salvarLocal(); render();
+});
 
 /* ---------- Interação: cliques ---------- */
 function clickNo(no,ev){
@@ -682,6 +713,8 @@ function editarTextoNo(no){
     no.texto=v;
     if(formaDoTipo(no.tipo)==="limite"&&v.trim()==="") no.texto="Sistema";
     salvarLocal(); render();
+    // reflete o novo texto no campo do ator mesmo que o campo esteja com foco
+    atualizarCampoNomeAtor(true);
   }
 }
 function editarTextoSeta(s){

@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="17">
+<html lang="pt-BR" data-theme="light" data-version="18">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 
@@ -48,6 +48,10 @@
   <div class="editor-bar">
     <button class="btn btn-secundario" id="btnVoltar" type="button" title="Voltar à tela inicial">← Diagramas</button>
     <input class="titulo" id="tituloDiagrama" type="text" maxlength="80" placeholder="Nome do diagrama" aria-label="Nome do diagrama">
+    <div class="grupo-nome-ator" id="grupoNomeAtor" style="display:none">
+      <label for="campoNomeAtor">Nome do ator</label>
+      <input id="campoNomeAtor" type="text" maxlength="80" placeholder="Ex.: Cliente" aria-label="Nome do ator">
+    </div>
     <div class="ferr-grupo">
       <button class="fbtn" id="btnExportarSVG" type="button">🖼️ Exportar SVG</button>
       <button class="fbtn" id="btnExportarPNG" type="button">🖼️ Exportar PNG</button>
@@ -136,6 +140,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="script.js?v=17"></script>
+<script src="script.js?v=18"></script>
 </body>
 </html>
