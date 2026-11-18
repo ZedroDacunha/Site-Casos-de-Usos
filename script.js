@@ -797,9 +797,13 @@ function abrirInline(no){
   input.value=no.texto||"";
   input.style.width=Math.max(120,(no.texto||"").length*8+24)+"px";
   input.style.left=p.x+"px";
-  input.style.top=(p.y-14)+"px";
+  input.style.top=(p.y-14)+"px"; // posição inicial; refinada abaixo com a altura real
   input.style.transform="translateX(-50%)";
   wrap.appendChild(input);
+  // centraliza verticalmente o campo exatamente sobre a linha do texto:
+  // o centro do campo fica na baseline do texto (p.y), ajustado pelo padding
+  const ih=input.offsetHeight||30;
+  input.style.top=(p.y - ih/2)+"px";
   inlineEdit={input,no,original:no.texto||""};
   input.focus(); input.select();
   input.addEventListener("input",()=>{
