@@ -172,6 +172,15 @@ body{
   padding:6px 14px;border-radius:20px;font-size:12.5px;box-shadow:var(--sombra);pointer-events:none;
 }
 .dica-canvas.escondida{display:none}
+/* campo de edição inline de texto do bloco, posicionado sobre a caixa */
+.editor-inline{
+  position:absolute;z-index:20;
+  background:var(--panel);border:2px solid var(--primario);border-radius:6px;
+  color:var(--texto);font-size:14px;font-weight:600;font-family:inherit;
+  padding:4px 8px;outline:none;box-shadow:var(--sombra);
+  min-width:120px;text-align:center;
+}
+.editor-inline.comecando{outline:2px dashed var(--primario);outline-offset:2px}
 .info-selecionado{
   position:absolute;bottom:10px;left:12px;
   background:var(--panel);border:1px solid var(--borda);color:var(--texto-2);

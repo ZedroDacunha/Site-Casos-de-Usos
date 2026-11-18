@@ -262,7 +262,8 @@ function voltarInicio(){
   renderInicio();
 }
 document.getElementById("btnVoltar").addEventListener("click",voltarInicio);
-// Botão "Editar texto": edita o bloco selecionado (ou a seta selecionada)
+// Botão "Editar texto": edição inline do bloco selecionado (campo sobre a
+// caixa, onde o usuário digita); para seta, mantém o prompt de rótulo
 document.getElementById("btnEditarTexto").addEventListener("click",()=>{
   const d=diagramaAtual(); if(!d) return;
   if(estado.setaSelecionada){
@@ -271,7 +272,7 @@ document.getElementById("btnEditarTexto").addEventListener("click",()=>{
   }
   if(estado.selecionados.size){
     const no=d.no.find(n=>estado.selecionados.has(n.id));
-    if(no){ editarTextoNo(no); return; }
+    if(no){ abrirInline(no); return; }
   }
   toast("Selecione um bloco ou uma seta para editar o texto.","erro");
 });
@@ -741,20 +742,69 @@ function clickSeta(s){
   estado.setaSelecionada=estado.setaSelecionada===s.id?null:s.id;
   render();
 }
-function editarTextoNo(no){
-  const atual=no.texto!==undefined?no.texto:(formaDoTipo(no.tipo)==="limite"?"Sistema":"");
-  const v=prompt("Edite o texto do bloco:",atual);
-  if(v!==null){
-    no.texto=v;
-    if(formaDoTipo(no.tipo)==="limite"&&v.trim()==="") no.texto="Sistema";
-    salvarLocal(); render();
-    // reflete o novo texto no campo do ator mesmo que o campo esteja com foco
-    atualizarCampoNomeAtor(true);
-  }
-}
 function editarTextoSeta(s){
   const v=prompt("Rótulo da conexão (em branco para remover):",s.rotulo||"");
   if(v!==null){ s.rotulo=v; salvarLocal(); render(); }
+}
+
+/* ---------- Edição inline do texto do bloco (caixa) ----------
+   Ao clicar em "Editar texto" com um bloco selecionado, abre um campo HTML
+   posicionado sobre o texto da caixa, onde o usuario digita e o texto
+   aparece dentro da caixa em tempo real. Enter/desfocar salva; Escape cancela.
+*/
+function mundoParaWrap(x,y){
+  const r=svg.getBoundingClientRect();
+  const wrap=document.getElementById("canvasWrap");
+  const wr=wrap.getBoundingClientRect();
+  if(!r.width||!r.height) return {x:0,y:0};
+  const vb=svg.viewBox.baseVal;
+  const w=vb.width||r.width, h=vb.height||r.height;
+  return {x:(x-vb.x)/w*r.width + r.left - wr.left, y:(y-vb.y)/h*r.height + r.top - wr.top};
+}
+function posicaoTexto(no,w,h){
+  const forma=formaDoTipo(no.tipo);
+  let tx=w/2, ty=h/2+5;
+  if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;}
+  else if(no.tipo==="ator"){tx=w/2;ty=h+16;}
+  else if(forma==="limite"){tx=14;ty=26;}
+  else if(forma==="nota"){tx=14;ty=30;}
+  return {tx,ty};
+}
+function fecharInline(){
+  if(!inlineEdit) return;
+  const {input}=inlineEdit;
+  if(input.parentNode) input.parentNode.removeChild(input);
+  inlineEdit=null;
+  render();
+}
+function abrirInline(no){
+  const d=diagramaAtual(); if(!d) return;
+  if(inlineEdit) fecharInline();
+  const {w,h}=dimsPadrao(no.tipo);
+  const {tx,ty}=posicaoTexto(no,w,h);
+  const p=mundoParaWrap(no.x+tx, no.y+ty);
+  const wrap=document.getElementById("canvasWrap");
+  const input=document.createElement("input");
+  input.className="editor-inline";
+  input.type="text";
+  input.maxLength=120;
+  input.value=no.texto||"";
+  input.style.width=Math.max(120,(no.texto||"").length*8+24)+"px";
+  input.style.left=p.x+"px";
+  input.style.top=(p.y-14)+"px";
+  input.style.transform="translateX(-50%)";
+  wrap.appendChild(input);
+  inlineEdit={input,no,original:no.texto||""};
+  input.focus(); input.select();
+  input.addEventListener("input",()=>{
+    no.texto=input.value;
+    render();
+  });
+  input.addEventListener("keydown",ev=>{
+    if(ev.key==="Enter"){ ev.preventDefault(); fecharInline(); salvarLocal(); }
+    else if(ev.key==="Escape"){ ev.preventDefault(); no.texto=inlineEdit.original; fecharInline(); }
+  });
+  input.addEventListener("blur",()=>{ fecharInline(); salvarLocal(); });
 }
 function adicionarSeta(de,para){
   const d=diagramaAtual();
@@ -815,6 +865,8 @@ let arrastagem=null;
 // true quando o usuário realmente arrastou (movimento acima do limite) — usado para
 // ignorar o clique que o browser dispara após o arrasto, em qualquer ferramenta
 let arrastoReal=false;
+// edição inline do texto do bloco (campo HTML posicionado sobre a caixa)
+let inlineEdit=null;
 svg.addEventListener("pointerdown",ev=>{
   const grp=ev.target.closest(".no-grp");
   if(!grp) return;
