@@ -396,6 +396,43 @@ function parAncoras(aa,ba){
   }
   return melhor;
 }
+/* Centro da caixa de âncoras de um nó (centro geométrico da caixa delimitadora).
+   Os pontos de âncora já estão em coordenadas mundiais, então o centro é a média. */
+function centroAncora(aa){
+  return {
+    x:(aa.esquerda.x+aa.direita.x)/2,
+    y:(aa.topo.y+aa.inferior.y)/2
+  };
+}
+/* Ponto de encaixe na borda do nó: interseção da semirreta que vai do centro do nó
+   na direção de (tx,ty) com a caixa delimitadora. Isso dá um ponto de encaixe em
+   QUALQUER lugar do perímetro (não só os 4 pontos médios dos lados), deixando o
+   diagrama menos rígido e com muito mais possibilidades de encaixe. */
+function pontoFrontal(aa,no,tx,ty){
+  const c=centroAncora(aa);
+  const dx=tx-c.x, dy=ty-c.y;
+  if(Math.abs(dx)<0.001&&Math.abs(dy)<0.001) return c;
+  let t=Infinity;
+  if(dx>0) t=Math.min(t,(aa.direita.x-c.x)/dx);
+  else if(dx<0) t=Math.min(t,(aa.esquerda.x-c.x)/dx);
+  if(dy>0) t=Math.min(t,(aa.inferior.y-c.y)/dy);
+  else if(dy<0) t=Math.min(t,(aa.topo.y-c.y)/dy);
+  if(!isFinite(t)||t<=0) t=1;
+  return {x:c.x+t*dx, y:c.y+t*dy};
+}
+/* Par de pontos de encaixe: ponto de saída de A na direção de B, e ponto de
+   entrada de B na direção de A — os dois pontos "enfrentam" um ao outro. */
+function parEncaixe(aa,a,bb,b){
+  const ca=centroAncora(aa), cb=centroAncora(bb);
+  return {
+    p1:pontoFrontal(aa,a,cb.x,cb.y),
+    p2:pontoFrontal(bb,b,ca.x,ca.y)
+  };
+}
+/* Caminho reto entre dois pontos de encaixe — mais natural que o caminho em L */
+function caminhoReto(p1,p2){
+  return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+}
 function caminhoL(p1,p2){
   const dx=p2.x-p1.x, dy=p2.y-p1.y;
   if(Math.abs(dx)<1&&Math.abs(dy)<1) return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
@@ -416,51 +453,57 @@ function pontoMeio(p1,p2){
   if(meio<=ady) return {x:p1.x, y:p1.y+(dy>0?meio:-meio)};
   return {x:p1.x+(dx>0?(meio-ady):-(meio-ady)), y:p2.y};
 }
-/* Distribui os pontos de partida/chegada das setas ao longo do lado do bloco quando
-   várias setas usam o mesmo lado (como origem ou como destino): cada seta passa a
-   sair/chegar num ponto distinto (fan-out), e os pontos se afastam levemente da
-   borda do bloco — as setas não ficam sobrepostas/grudadas entre si nem coladas no
-   contorno dos blocos */
+/* Distribui os pontos de partida/chegada das setas: cada seta usa o ponto de
+   encaixe (frente) na borda do bloco, e quando várias setas saem do mesmo bloco
+   são ordenadas por ângulo e deslocadas perpendicularmente (fan-out), além do
+   afastamento da borda — as setas não ficam sobrepostas entre si nem coladas no
+   contorno, e o encaixe pode acontecer em qualquer ponto do perímetro. */
 function calcularFanout(d,pontosPorNo){
-  const SPACING=16, GAP=4;
-  const contO=new Map(), contD=new Map(), indO=new Map(), indD=new Map();
-  const chave=(id,lado)=>id+"|"+lado;
+  const SPACING=10, GAP=4;
   const pares=[];
   for(const s of d.seta){
     const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
     if(!a||!b) continue;
-    const par=parAncoras(pontosPorNo.get(a.id),pontosPorNo.get(b.id));
-    if(!par) continue;
-    pares.push({s,a,b,par});
-    const ko=chave(a.id,par.origem), kd=chave(b.id,par.destino);
-    contO.set(ko,(contO.get(ko)||0)+1);
-    contD.set(kd,(contD.get(kd)||0)+1);
+    const aa=pontosPorNo.get(a.id), bb=pontosPorNo.get(b.id);
+    if(!aa||!bb) continue;
+    pares.push({s,a,b,aa,bb,par:parEncaixe(aa,a,bb,b)});
+  }
+  // agrupar por nó de origem e ordenar por ângulo para o fan-out angular
+  const porOrigem=new Map();
+  for(const item of pares){
+    const arr=porOrigem.get(item.a.id)||[];
+    arr.push(item);
+    porOrigem.set(item.a.id,arr);
+  }
+  for(const [id,arr] of porOrigem){
+    arr.sort((x,y)=>{
+      const ca=centroAncora(x.aa);
+      const cb=centroAncora(y.aa);
+      return Math.atan2(x.par.p1.y-ca.y,x.par.p1.x-ca.x)-
+             Math.atan2(y.par.p1.y-cb.y,y.par.p1.x-cb.x);
+    });
+    arr.forEach((item,i)=>item.iO=i);
   }
   const out=new Map();
-  for(const {s,a,b,par} of pares){
-    const ko=chave(a.id,par.origem), kd=chave(b.id,par.destino);
-    const iO=indO.get(ko)||0; indO.set(ko,iO+1);
-    const iD=indD.get(kd)||0; indD.set(kd,iD+1);
-    const aa=pontosPorNo.get(a.id), bb=pontosPorNo.get(b.id);
+  for(const {s,a,b,aa,bb,par,iO} of pares){
+    const nO=(porOrigem.get(a.id)||[]).length||1;
+    const off=(iO-(nO-1)/2)*SPACING;
+    const dx=par.p2.x-par.p1.x, dy=par.p2.y-par.p1.y;
+    const len=Math.hypot(dx,dy)||1;
+    const px=-dy/len, py=dx/len; // perpendicular à direção da seta
     out.set(s.id,{
-      p1:ajustarPontoFanout(par.p1,par.origem,(iO-(contO.get(ko)-1)/2)*SPACING,aa,GAP),
-      p2:ajustarPontoFanout(par.p2,par.destino,(iD-(contD.get(kd)-1)/2)*SPACING,bb,GAP)
+      p1:afastarEncaixe(par.p1,aa,a,GAP,px*off,py*off),
+      p2:afastarEncaixe(par.p2,bb,b,GAP,px*off,py*off)
     });
   }
   return out;
 }
-function ajustarPontoFanout(p,lado,off,aa,GAP){
-  let q={x:p.x,y:p.y};
-  if(lado==="topo"||lado==="inferior"){
-    // desloca ao longo da borda horizontal e afasta para cima/baixo da borda
-    q.x=Math.max(aa.esquerda.x+6,Math.min(aa.direita.x-6,p.x+off));
-    q.y=lado==="topo"?p.y-GAP:p.y+GAP;
-  }else{
-    // desloca ao longo da borda vertical e afasta para a esquerda/direita da borda
-    q.y=Math.max(aa.topo.y+6,Math.min(aa.inferior.y-6,p.y+off));
-    q.x=lado==="esquerda"?p.x-GAP:p.x+GAP;
-  }
-  return q;
+function afastarEncaixe(p,aa,no,GAP,dx,dy){
+  const c=centroAncora(aa);
+  let nx=p.x-c.x, ny=p.y-c.y;
+  const nl=Math.hypot(nx,ny)||1;
+  nx/=nl; ny/=nl; // normal de saída (de centro até o ponto de encaixe)
+  return {x:p.x+nx*GAP+dx, y:p.y+ny*GAP+dy};
 }
 
 function render(){
@@ -539,14 +582,14 @@ function render(){
   for(const s of d.seta){
     const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
     if(!a||!b) continue;
-    const par=fanout.get(s.id)||parAncoras(pontosPorNo.get(a.id),pontosPorNo.get(b.id));
-    const dPath=caminhoL(par.p1,par.p2);
+    const par=fanout.get(s.id)||parEncaixe(pontosPorNo.get(a.id),a,pontosPorNo.get(b.id),b);
+    const dPath=caminhoReto(par.p1,par.p2);
     const sel=estado.setaSelecionada===s.id;
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
     const marcaFinal=semSeta?"":(vazio?(sel?"url(#setaMarkerVazioSel)":"url(#setaMarkerVazio)"):(sel?"url(#setaMarkerSel)":"url(#setaMarker)"));
     const marca=vazio?`<<${s.tipo}>>`:"";
-    const meio=pontoMeio(par.p1,par.p2);
+    const meio={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
     const lblX=meio.x, lblY=meio.y;
     let html=`<path class="conector-hit" d="${dPath}"/>`;
     html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" marker-end="${marcaFinal}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
@@ -780,16 +823,16 @@ function bboxDoCanvas(){
     if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
   }
   // inclui as caixas de rótulo das setas (marca include/extend e rótulo do usuário)
-  // — usa a mesma distribuição de âncoras (fan-out) da renderização, para o rótulo
-  // ficar no mesmo ponto que o renderizado
+  // — usa a mesma distribuição de âncoras (encaixe/fan-out) da renderização, para o
+  // rótulo ficar no mesmo ponto que o renderizado
   const pontosExport=new Map();
   for(const no of d.no) pontosExport.set(no.id,ancorasDados(no));
   const fanoutExport=calcularFanout(d,pontosExport);
   for(const s of d.seta){
     const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
     if(!a||!b) continue;
-    const par=fanoutExport.get(s.id)||parAncoras(ancorasDados(a),ancorasDados(b));
-    const m=pontoMeio(par.p1,par.p2);
+    const par=fanoutExport.get(s.id)||parEncaixe(ancorasDados(a),a,ancorasDados(b),b);
+    const m={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
     let meia=0;
     if(s.tipo==="include"||s.tipo==="extend") meia=28;
     if(s.rotulo&&s.rotulo.trim()) meia=Math.max(meia, s.rotulo.length*3.6+6);
