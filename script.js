@@ -828,28 +828,42 @@ svg.addEventListener("pointerdown",ev=>{
   // grupo normalmente para acionar clickNo (origem -> destino -> seta).
   if(estado.ferramenta==="conectar") return;
   // arrasto funciona em qualquer ferramenta (selecionar, conectar, seta, texto)
-  if(!estado.selecionados.has(no.id)){
-    // seleciona sem rebuildar o DOM: evita remover o alvo do ponteiro antes do capture
-    if(!ev.shiftKey){
-      estado.selecionados.clear(); estado.setaSelecionada=null;
-      camadaNos.querySelectorAll(".no-grp.selecionado").forEach(el=>el.classList.remove("selecionado"));
-    }
-    estado.selecionados.add(no.id);
-    grp.classList.add("selecionado");
-  }
+  // NÃO seleciona e NÃO captura o ponteiro aqui no pointerdown: a seleção e a
+  // captura acontecem só quando o movimento de arrasto realmente começa (primeiro
+  // pointermove que ultrapassa o limite). Se capturar no pointerdown, o click e o
+  // dblclick são redirecionados para o svg (elemento capturante) e nunca chegam ao
+  // grupo — o clique simples/duplo deixaria de selecionar (só selecionaria ao
+  // arrastar). O click precisa chegar ao grupo normalmente.
   const p0=posMundo(ev.clientX,ev.clientY);
-  const originais=new Map();
-  for(const n of d.no.filter(n=>estado.selecionados.has(n.id))) originais.set(n.id,{x:n.x,y:n.y});
-  arrastagem={p0,originais};
+  arrastagem={p0,originais:new Map(),capturado:false,grp,no};
   arrastoReal=false;
-  try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
 });
 svg.addEventListener("pointermove",ev=>{
   if(!arrastagem) return;
   const p=posMundo(ev.clientX,ev.clientY);
   const dx=p.x-arrastagem.p0.x, dy=p.y-arrastagem.p0.y;
   // limite mínimo de movimento para considerar um arrasto real (e não um clique)
-  if(Math.abs(dx)>3||Math.abs(dy)>3) arrastoReal=true;
+  if(Math.abs(dx)>3||Math.abs(dy)>3){
+    // primeiro movimento real de arrasto: aí seleciona (se ainda não estiver) e
+    // captura o ponteiro — a captura só é necessária para o arrasto e só aí, para
+    // o clique simples/duplo (sem arrasto) chegar normalmente ao grupo
+    if(!arrastagem.capturado){
+      arrastagem.capturado=true;
+      arrastoReal=true;
+      const {grp,no}=arrastagem;
+      if(!estado.selecionados.has(no.id)){
+        if(!ev.shiftKey){
+          estado.selecionados.clear(); estado.setaSelecionada=null;
+        }
+        estado.selecionados.add(no.id);
+      }
+      // reconstrói as origens com a seleção atual (inclui o nó que será arrastado)
+      for(const n of diagramaAtual().no.filter(n=>estado.selecionados.has(n.id))){
+        arrastagem.originais.set(n.id,{x:n.x,y:n.y});
+      }
+      try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
+    }
+  }
   for(const [id,o] of arrastagem.originais){
     const n=diagramaAtual().no.find(x=>x.id===id);
     if(n){ n.x=Math.round(o.x+dx); n.y=Math.round(o.y+dy); }
