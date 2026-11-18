@@ -416,6 +416,52 @@ function pontoMeio(p1,p2){
   if(meio<=ady) return {x:p1.x, y:p1.y+(dy>0?meio:-meio)};
   return {x:p1.x+(dx>0?(meio-ady):-(meio-ady)), y:p2.y};
 }
+/* Distribui os pontos de partida/chegada das setas ao longo do lado do bloco quando
+   várias setas usam o mesmo lado (como origem ou como destino): cada seta passa a
+   sair/chegar num ponto distinto (fan-out), e os pontos se afastam levemente da
+   borda do bloco — as setas não ficam sobrepostas/grudadas entre si nem coladas no
+   contorno dos blocos */
+function calcularFanout(d,pontosPorNo){
+  const SPACING=16, GAP=4;
+  const contO=new Map(), contD=new Map(), indO=new Map(), indD=new Map();
+  const chave=(id,lado)=>id+"|"+lado;
+  const pares=[];
+  for(const s of d.seta){
+    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
+    if(!a||!b) continue;
+    const par=parAncoras(pontosPorNo.get(a.id),pontosPorNo.get(b.id));
+    if(!par) continue;
+    pares.push({s,a,b,par});
+    const ko=chave(a.id,par.origem), kd=chave(b.id,par.destino);
+    contO.set(ko,(contO.get(ko)||0)+1);
+    contD.set(kd,(contD.get(kd)||0)+1);
+  }
+  const out=new Map();
+  for(const {s,a,b,par} of pares){
+    const ko=chave(a.id,par.origem), kd=chave(b.id,par.destino);
+    const iO=indO.get(ko)||0; indO.set(ko,iO+1);
+    const iD=indD.get(kd)||0; indD.set(kd,iD+1);
+    const aa=pontosPorNo.get(a.id), bb=pontosPorNo.get(b.id);
+    out.set(s.id,{
+      p1:ajustarPontoFanout(par.p1,par.origem,(iO-(contO.get(ko)-1)/2)*SPACING,aa,GAP),
+      p2:ajustarPontoFanout(par.p2,par.destino,(iD-(contD.get(kd)-1)/2)*SPACING,bb,GAP)
+    });
+  }
+  return out;
+}
+function ajustarPontoFanout(p,lado,off,aa,GAP){
+  let q={x:p.x,y:p.y};
+  if(lado==="topo"||lado==="inferior"){
+    // desloca ao longo da borda horizontal e afasta para cima/baixo da borda
+    q.x=Math.max(aa.esquerda.x+6,Math.min(aa.direita.x-6,p.x+off));
+    q.y=lado==="topo"?p.y-GAP:p.y+GAP;
+  }else{
+    // desloca ao longo da borda vertical e afasta para a esquerda/direita da borda
+    q.y=Math.max(aa.topo.y+6,Math.min(aa.inferior.y-6,p.y+off));
+    q.x=lado==="esquerda"?p.x-GAP:p.x+GAP;
+  }
+  return q;
+}
 
 function render(){
   const d=diagramaAtual(); if(!d) return;
@@ -489,10 +535,11 @@ function render(){
     g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoNo(no); };
   }
   camadaConexoes.innerHTML="";
+  const fanout=calcularFanout(d,pontosPorNo);
   for(const s of d.seta){
     const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
     if(!a||!b) continue;
-    const par=parAncoras(pontosPorNo.get(a.id),pontosPorNo.get(b.id));
+    const par=fanout.get(s.id)||parAncoras(pontosPorNo.get(a.id),pontosPorNo.get(b.id));
     const dPath=caminhoL(par.p1,par.p2);
     const sel=estado.setaSelecionada===s.id;
     const semSeta=s.tipo==="geralizacao";
@@ -732,10 +779,15 @@ function bboxDoCanvas(){
     if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
   }
   // inclui as caixas de rótulo das setas (marca include/extend e rótulo do usuário)
+  // — usa a mesma distribuição de âncoras (fan-out) da renderização, para o rótulo
+  // ficar no mesmo ponto que o renderizado
+  const pontosExport=new Map();
+  for(const no of d.no) pontosExport.set(no.id,ancorasDados(no));
+  const fanoutExport=calcularFanout(d,pontosExport);
   for(const s of d.seta){
     const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
     if(!a||!b) continue;
-    const par=parAncoras(ancorasDados(a),ancorasDados(b));
+    const par=fanoutExport.get(s.id)||parAncoras(ancorasDados(a),ancorasDados(b));
     const m=pontoMeio(par.p1,par.p2);
     let meia=0;
     if(s.tipo==="include"||s.tipo==="extend") meia=28;
