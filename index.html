@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="18">
+<html lang="pt-BR" data-theme="light" data-version="19">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 
@@ -55,6 +55,7 @@
     <div class="ferr-grupo">
       <button class="fbtn" id="btnExportarSVG" type="button">🖼️ Exportar SVG</button>
       <button class="fbtn" id="btnExportarPNG" type="button">🖼️ Exportar PNG</button>
+      <button class="fbtn" id="btnEditarTexto" type="button" title="Editar o texto do bloco ou da seta selecionada">🔤 Editar texto</button>
     </div>
   </div>
   <div class="layout">
@@ -64,7 +65,7 @@
       <div class="paleta-lista" id="paletaLista"></div>
       <div class="paleta-acoes">
         <b>Dica:</b> ferramenta <b>Selecionar</b>: clique num bloco, arraste para mover, Excluir para remover.
-        <b>Conectar</b>: clique na origem e depois no destino para criar a seta. Duplo clique em bloco ou seta edita o texto.
+        <b>Conectar</b>: clique na origem e depois no destino para criar a seta. Duplo clique em bloco ou seta seleciona — o botão <b>🔤 Editar texto</b> (barra do editor) edita o texto.
       </div>
     </aside>
     <main class="editor-area">
@@ -140,6 +141,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="script.js?v=18"></script>
+<script src="script.js?v=19"></script>
 </body>
 </html>

@@ -262,6 +262,19 @@ function voltarInicio(){
   renderInicio();
 }
 document.getElementById("btnVoltar").addEventListener("click",voltarInicio);
+// Botão "Editar texto": edita o bloco selecionado (ou a seta selecionada)
+document.getElementById("btnEditarTexto").addEventListener("click",()=>{
+  const d=diagramaAtual(); if(!d) return;
+  if(estado.setaSelecionada){
+    const s=d.seta.find(x=>x.id===estado.setaSelecionada);
+    if(s){ editarTextoSeta(s); return; }
+  }
+  if(estado.selecionados.size){
+    const no=d.no.find(n=>estado.selecionados.has(n.id));
+    if(no){ editarTextoNo(no); return; }
+  }
+  toast("Selecione um bloco ou uma seta para editar o texto.","erro");
+});
 
 /* =========================================================================
    Paleta
@@ -590,8 +603,10 @@ function render(){
     alinha.setAttribute("rx",4);
     g.appendChild(alinha);
   }
-  g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
-    g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoNo(no); };
+    g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
+    // duplo-clique seleciona o bloco (qualquer ferramenta, incluse conectar),
+    // sem interferir no fluxo de conexão — o clique simples mantém seu papel
+    g.ondblclick=ev=>{ ev.stopPropagation(); selecionarNo(no,ev); };
   }
   camadaSetasFundo.innerHTML="";
   camadaConexoes.innerHTML="";
@@ -629,7 +644,8 @@ function render(){
     g.innerHTML=html;
     g.style.pointerEvents="auto";
     g.onclick=ev=>{ ev.stopPropagation(); clickSeta(s); };
-    g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoSeta(s); };
+    // duplo-clique seleciona a seta (qualquer ferramenta)
+    g.ondblclick=ev=>{ ev.stopPropagation(); selecionarSeta(s); };
     camadaConexoes.appendChild(g);
   }
   const dica=document.getElementById("dicaCanvas");
@@ -676,6 +692,25 @@ document.getElementById("campoNomeAtor").addEventListener("input",e=>{
 });
 
 /* ---------- Interação: cliques ---------- */
+/* Seleciona um bloco independente da ferramenta ativa (usado pelo duplo-clique):
+   com Shift, adiciona/remove da seleção; sem Shift, seleciona somente ele. */
+function selecionarNo(no,ev){
+  if(ev&&ev.shiftKey){
+    if(estado.selecionados.has(no.id)) estado.selecionados.delete(no.id);
+    else estado.selecionados.add(no.id);
+  }else{
+    estado.selecionados.clear();
+    estado.selecionados.add(no.id);
+    estado.setaSelecionada=null;
+  }
+  render();
+}
+/* Seleciona uma seta independente da ferramenta ativa (usado pelo duplo-clique) */
+function selecionarSeta(s){
+  estado.selecionados.clear();
+  estado.setaSelecionada=s.id;
+  render();
+}
 function clickNo(no,ev){
   if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
   if(estado.ferramenta==="conectar"){
