@@ -542,15 +542,16 @@ function render(){
     const par=fanout.get(s.id)||parAncoras(pontosPorNo.get(a.id),pontosPorNo.get(b.id));
     const dPath=caminhoL(par.p1,par.p2);
     const sel=estado.setaSelecionada===s.id;
+    const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
-    const marcaFinal=semSeta?"":(sel?"url(#setaMarkerSel)":"url(#setaMarker)");
-    const marca=(s.tipo==="include"||s.tipo==="extend")?`<<${s.tipo}>>`:"";
+    const marcaFinal=semSeta?"":(vazio?(sel?"url(#setaMarkerVazioSel)":"url(#setaMarkerVazio)"):(sel?"url(#setaMarkerSel)":"url(#setaMarker)"));
+    const marca=vazio?`<<${s.tipo}>>`:"";
     const meio=pontoMeio(par.p1,par.p2);
     const lblX=meio.x, lblY=meio.y;
     let html=`<path class="conector-hit" d="${dPath}"/>`;
-    html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" marker-end="${marcaFinal}" ${s.tipo==="geralizacao"?'stroke-dasharray="6 5"':""}/>`;
-    if(marca) html+=`<rect class="conector-caixa" x="${lblX-28}" y="${lblY-9}" width="56" height="16" rx="4"/>
-                     <text class="conector-marca ${s.tipo}" x="${lblX}" y="${lblY+4}" text-anchor="middle">${marca}</text>`;
+    html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" marker-end="${marcaFinal}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
+    if(marca) html+=`<rect class="conector-caixa" x="${lblX-marca.length*2.4-4}" y="${lblY-7}" width="${marca.length*4.8+8}" height="14" rx="4"/>
+                     <text class="conector-marca-pequena ${s.tipo}" x="${lblX}" y="${lblY+3.5}" text-anchor="middle">${esc(marca)}</text>`;
     if(s.rotulo&&s.rotulo.trim()){
       html+=`<rect class="conector-caixa" x="${lblX-s.rotulo.length*3.6-6}" y="${lblY-22}" width="${s.rotulo.length*7.2+12}" height="18" rx="6" opacity=".95"/>
              <text class="conector-marca" x="${lblX}" y="${lblY-8}" text-anchor="middle">${esc(s.rotulo)}</text>`;
@@ -824,6 +825,11 @@ function cssExport(){
 .conector-marca.extend{fill:var(--aviso)}
 .seta-marca{fill:var(--texto-2)}
 .seta-marca-sel{fill:var(--primario)}
+.seta-marca-vazio{fill:none;stroke:var(--texto-2);stroke-width:1.6}
+.seta-marca-vazio-sel{fill:none;stroke:var(--primario);stroke-width:1.8}
+.conector-marca-pequena{font-size:8.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
+.conector-marca-pequena.include{fill:var(--sucesso)}
+.conector-marca-pequena.extend{fill:var(--aviso)}
 `;
 }
 function construirSVGExport(){
