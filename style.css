@@ -218,9 +218,10 @@ body{
 .ancora{fill:var(--primario);stroke:var(--panel);stroke-width:2;cursor:crosshair;opacity:0;transition:opacity .1s ease}
 .seta-marca{fill:var(--texto-2)}
 .seta-marca-sel{fill:var(--primario)}
-/* setas vazadas (include/extend): ponta sem preenchimento, só contorno */
-.seta-marca-vazio{fill:none;stroke:var(--texto-2);stroke-width:1.6}
-.seta-marca-vazio-sel{fill:none;stroke:var(--primario);stroke-width:1.8}
+/* cabeça (ponta) da seta: triângulo SÓLIDO (não vazada), desenhado na camada de
+   fundo — abaixo das linhas, para as linhas que cruzam por ela ficarem visíveis */
+.seta-cabeca{fill:var(--texto-2);pointer-events:none}
+.seta-cabeca.selecionada{fill:var(--primario)}
 /* texto pequeno indicando a linha da conexão vazada (include/extend) */
 .conector-marca-pequena{font-size:8.5px;font-weight:700;fill:var(--texto-2);pointer-events:none;font-family:inherit}
 .conector-marca-pequena.include{fill:var(--sucesso)}
