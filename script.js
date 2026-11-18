@@ -287,7 +287,8 @@ function renderPaleta(){
   const lista=document.getElementById("paletaLista");
   lista.innerHTML="";
   for(const it of cfg.paleta){
-    const div=document.createElement("div");
+    const div=document.createElement("button");
+    div.type="button";
     div.className="item-bloco";
     div.draggable=false;
     const {w,h}=dimsPadrao(it.id);
@@ -320,17 +321,30 @@ function renderPaleta(){
 function renderConexoes(){
   const d=diagramaAtual(); if(!d) return;
   const grupo=document.getElementById("grupoConexoes");
-  grupo.innerHTML="";
-  for(const tipo of TIPOS[d.tipo].conexoes){
-    const b=document.createElement("button");
-    b.type="button";
-    b.className="fbtn"+(estado.tipoConexao===tipo?" ativo":"");
-    b.textContent=RÓTULO_CONEXAO[tipo];
-    b.title=`Conexão: ${RÓTULO_CONEXAO[tipo]}`;
-    b.addEventListener("click",()=>{ estado.tipoConexao=tipo; renderConexoes(); });
-    grupo.appendChild(b);
-  }
+  const tipos=TIPOS[d.tipo].conexoes;
+  grupo.replaceChildren(...tipos.map(tipo=>new Option(RÓTULO_CONEXAO[tipo],tipo)));
+  grupo.value=estado.tipoConexao;
+  document.getElementById("opcoesConexao").hidden=estado.ferramenta!=="conectar" || tipos.length<2;
 }
+document.getElementById("grupoConexoes").addEventListener("change",ev=>{
+  estado.tipoConexao=ev.target.value;
+});
+
+const menuDiagrama=document.getElementById("menuDiagrama");
+document.addEventListener("click",ev=>{
+  if(!menuDiagrama.open) return;
+  if(!menuDiagrama.contains(ev.target)) menuDiagrama.open=false;
+  else if(ev.target.closest("button")){
+    menuDiagrama.open=false;
+    menuDiagrama.querySelector("summary").focus();
+  }
+});
+menuDiagrama.addEventListener("keydown",ev=>{
+  if(ev.key==="Escape"){
+    menuDiagrama.open=false;
+    menuDiagrama.querySelector("summary").focus();
+  }
+});
 
 /* =========================================================================
    Editor: renderização (blocos + setas)
@@ -658,13 +672,11 @@ function render(){
   const dica=document.getElementById("dicaCanvas");
   dica.style.display=d.no.length===0?"block":"none";
   const info=document.getElementById("infoSelecionado");
-  if(estado.selecionados.size||estado.setaSelecionada){
-    info.hidden=false;
-    let txt=[];
-    if(estado.selecionados.size) txt.push(estado.selecionados.size+" bloco(s) selecionado(s)");
-    if(estado.setaSelecionada) txt.push("1 seta selecionada");
-    info.textContent=txt.join(" • ")+" — arraste para mover, Excluir para remover";
-  }else info.hidden=true;
+  const quantidade=estado.selecionados.size;
+  document.getElementById("acoesSelecao").hidden=!quantidade && !estado.setaSelecionada;
+  document.getElementById("btnEditarTexto").hidden=quantidade>1;
+  info.textContent=estado.setaSelecionada ? "Seta selecionada" :
+    quantidade===1 ? "Bloco selecionado" : quantidade+" blocos selecionados";
   atualizarCampoNomeAtor();
   posicionarInline(); // acompanha o bloco se ele se mover enquanto o campo de edição está aberto
 }
@@ -968,7 +980,10 @@ function definirFerramenta(f){
   estado.origemConexao=null;
   document.getElementById("ferrSelecionar").classList.toggle("ativo",f==="selecionar");
   document.getElementById("ferrConectar").classList.toggle("ativo",f==="conectar");
+  document.getElementById("ferrSelecionar").setAttribute("aria-pressed",String(f==="selecionar"));
+  document.getElementById("ferrConectar").setAttribute("aria-pressed",String(f==="conectar"));
   svg.classList.toggle("ferramenta-conectar",f==="conectar");
+  if(diagramaAtual()) renderConexoes();
   render();
 }
 document.getElementById("ferrSelecionar").addEventListener("click",()=>definirFerramenta("selecionar"));
@@ -1157,8 +1172,14 @@ function init(){
   carregarLocal();
   temaAplicar(temaInicial());
   renderInicio();
-  window.addEventListener("resize",()=>{ if(diagramaAtual()) aplicarZoomVisual(); });
+  new ResizeObserver(()=>{
+    if(diagramaAtual()){
+      aplicarZoomVisual();
+      posicionarInline();
+    }
+  }).observe(document.getElementById("canvasWrap"));
   window.addEventListener("keydown",ev=>{
+    if(!diagramaAtual() || ev.ctrlKey || ev.metaKey || ev.altKey) return;
     if(ev.target.tagName==="INPUT"||ev.target.tagName==="TEXTAREA"||ev.target.tagName==="SELECT") return;
     if(ev.key==="Delete"||ev.key==="Backspace"){
       if(estado.selecionados.size||estado.setaSelecionada){ ev.preventDefault(); excluirSelecionados(); }
