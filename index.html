@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="16">
+<html lang="pt-BR" data-theme="light" data-version="17">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 
@@ -14,9 +14,6 @@
   <div class="logo"><span class="icone">🧩</span><span>Editor de Diagramas</span></div>
   <div class="topo-espaço"></div>
   <div class="topo-acoes">
-    <button class="btn btn-secundario" id="btnExportarJSON" type="button" title="Exportar todos os diagramas em JSON">💾 Exportar JSON</button>
-    <button class="btn btn-secundario" id="btnImportarJSON" type="button" title="Importar diagramas de um JSON">📥 Importar JSON</button>
-    <input type="file" id="arquivoJSON" accept="application/json,.json" hidden>
     <button class="btn btn-secundario" id="btnTema" type="button" title="Alternar tema claro/escuro">🌓</button>
   </div>
 </header>
@@ -31,6 +28,14 @@
     <div class="inicio-linha">
       <div class="botoes-linha">
         <button class="btn btn-primario" id="btnNovoDiagrama" type="button">＋ Novo diagrama</button>
+      </div>
+    </div>
+    <div class="inicio-bar" id="barraIO">
+      <span class="inicio-bar-rotulo">Importar e exportar</span>
+      <div class="inicio-bar-acoes">
+        <button class="btn btn-secundario" id="btnExportarJSON" type="button" title="Exportar todos os diagramas em JSON">💾 Exportar JSON</button>
+        <button class="btn btn-secundario" id="btnImportarJSON" type="button" title="Importar diagramas de um JSON">📥 Importar JSON</button>
+        <input type="file" id="arquivoJSON" accept="application/json,.json" hidden>
       </div>
     </div>
     <div class="lista-diagramas" id="listaDiagramas"></div>
@@ -131,6 +136,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="script.js?v=16"></script>
+<script src="script.js?v=17"></script>
 </body>
 </html>
