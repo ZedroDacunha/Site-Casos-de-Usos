@@ -666,6 +666,7 @@ function render(){
     info.textContent=txt.join(" • ")+" — arraste para mover, Excluir para remover";
   }else info.hidden=true;
   atualizarCampoNomeAtor();
+  posicionarInline(); // acompanha o bloco se ele se mover enquanto o campo de edição está aberto
 }
 
 /* ---------- Campo de nome do ator ----------
@@ -815,6 +816,22 @@ function abrirInline(no){
     else if(ev.key==="Escape"){ ev.preventDefault(); no.texto=inlineEdit.original; fecharInline(); }
   });
   input.addEventListener("blur",()=>{ fecharInline(); salvarLocal(); });
+}
+/* Atualiza a posição do campo de edição inline aberto para acompanhar o bloco.
+   Antes o campo era posicionado só na abertura; ao arrastar o bloco ele ficava
+   fixo no local original. Agora, a cada render (incluindo cada movimento do
+   arrasto), o campo é reposicionado sobre o texto na posição atual do bloco. */
+function posicionarInline(){
+  if(!inlineEdit) return;
+  const d=diagramaAtual(); if(!d) return;
+  const no=d.no.find(n=>n.id===inlineEdit.no.id); if(!no) return;
+  const {w,h}=dimsPadrao(no.tipo);
+  const {tx,ty}=posicaoTexto(no,w,h);
+  const p=mundoParaWrap(no.x+tx, no.y+ty);
+  // centraliza o campo (centro na baseline do texto), como na abertura
+  const ih=inlineEdit.input.offsetHeight||30;
+  inlineEdit.input.style.left=p.x+"px";
+  inlineEdit.input.style.top=(p.y - ih/2)+"px";
 }
 function adicionarSeta(de,para){
   const d=diagramaAtual();
