@@ -72,8 +72,15 @@ const RÓTULO_CONEXAO={
    OBS: as cores são aplicadas por classe (CSS), não por atributo — atributos SVG
    não resolvem variáveis CSS (var(--x)). As classes em .forma-* definem fill/stroke.
 */
-function formaSVG(tipo,h,w){
-  switch(tipo){
+const formasPorId = new Map(Object.values(TIPOS).flatMap(cfg =>
+  cfg.paleta.map(item => [item.id, item.forma])
+));
+function formaDoTipo(tipo){
+  return formasPorId.get(tipo) || tipo;
+}
+
+function formaSVG(tipo,w,h){
+  switch(formaDoTipo(tipo)){
     case "oval":
       return `<circle class="forma-pre forma-oval" cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)/2-2}"/>
               <text class="no-texto" x="${w/2}" y="${h/2+5}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Início</text>`;
@@ -84,7 +91,7 @@ function formaSVG(tipo,h,w){
     case "barra":
       return `<rect class="forma-pre forma-barra" x="2" y="4" width="${w-4}" height="${Math.min(18,h-8)}" rx="4" stroke-width="2"/>
               <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="11.5" font-weight="700">fork / join</text>`;
-    case "decisao":
+    case "losango":
       return `<path class="forma-pre forma-decisao" d="M ${w/2},3 L ${w-3},${h/2} L ${w/2},${h-3} L 3,${h/2} Z"
                     stroke-width="2.2"/>`;
     case "retângulo":
@@ -98,13 +105,7 @@ function formaSVG(tipo,h,w){
     case "ator":
       // figura humana (bonequinho) desenhada de forma proporcional
       const cx=w/2;
-      const headR=Math.min(15,(h-40)/4);      // raio da cabeça
-      const headY=headR+9;                   // centro da cabeça
-      const bodyTop=headY+headR+1;           // topo do corpo
-      const bodyBot=h-32;                    // base do corpo / topo das pernas
-      const armY=bodyTop+(bodyBot-bodyTop)*0.45; // altura dos braços
-      const armDx=Math.min(26,w/2-10);       // distância horizontal dos braços
-      const legBot=h-4;                      // base das pernas
+      const {headR,headY,bodyTop,bodyBot,armY,armDx,legBot}=geomAtor(w,h);
       return `<circle class="forma-pre forma-ator" cx="${cx}" cy="${headY}" r="${headR}" stroke-width="2.6"/>
               <line class="forma-pre forma-ator" x1="${cx}" y1="${bodyTop}" x2="${cx}" y2="${bodyBot}" stroke-width="2.6"/>
               <line class="forma-pre forma-ator" x1="${cx-armDx}" y1="${armY}" x2="${cx+armDx}" y2="${armY}" stroke-width="2.6"/>
@@ -121,11 +122,11 @@ function formaSVG(tipo,h,w){
   }
 }
 function dimsPadrao(tipo){
-  switch(tipo){
-    case "inicio":   return {w:110,h:66};
+  switch(formaDoTipo(tipo)){
+    case "oval":     return {w:110,h:66};
     case "alvo":     return {w:88,h:88};
     case "barra":    return {w:140,h:34};
-    case "decisao":  return {w:170,h:110};
+    case "losango":  return {w:170,h:110};
     case "retângulo":return {w:180,h:60};
     case "elipse":   return {w:170,h:80};
     case "ator":     return {w:96,h:130};
@@ -276,7 +277,7 @@ function renderPaleta(){
     div.className="item-bloco";
     div.draggable=false;
     const {w,h}=dimsPadrao(it.id);
-    div.innerHTML=`<svg width="44" height="36" viewBox="0 0 ${Math.max(w,110)} ${Math.max(h,66)}">${formaSVG(it.id,Math.max(h,66),Math.max(w,110))}</svg><span class="label">${it.label}</span>`;
+    div.innerHTML=`<svg width="44" height="36" viewBox="0 0 ${w} ${h}">${formaSVG(it.id,w,h)}</svg><span class="label">${it.label}</span>`;
     div.addEventListener("click",()=>adicionarBloco(it.id));
     div.addEventListener("pointerdown",e=>{
       if(e.button!==0&&e.pointerType==="mouse") return;
@@ -353,25 +354,23 @@ function geomAtor(w,h){
   const legBot=h-4;
   return {headR,headY,bodyTop,bodyBot,armY,armDx,legBot,x0:w/2-armDx,y0:headY-headR,x1:w/2+armDx,y1:legBot};
 }
-function ancoras(no){
-  const {w,h}=dimsPadrao(no.tipo);
-  const cx=no.x+w/2, cy=no.y+h/2;
-  // ator: as âncoras ficam nos 4 cantos do retângulo invisível que abraça a figura,
-  // formando um retângulo alinhado e claro ao redor do bonequinho
+function ancoras(no,grupo,w,h){
+  // A primeira forma é o contorno externo. Textos e áreas de clique ficam de fora.
+  const borda=grupo.querySelector(".forma-pre").getBBox();
+  let esquerda=borda.x, direita=borda.x+borda.width;
+  let topo=borda.y, inferior=borda.y+borda.height;
+  let meioY=(topo+inferior)/2;
   if(no.tipo==="ator"){
     const g=geomAtor(w,h);
-    return {
-      topo:{x:no.x+g.x0,y:no.y+g.y0},       // canto superior esquerdo
-      direita:{x:no.x+g.x1,y:no.y+g.y0},   // canto superior direito
-      inferior:{x:no.x+g.x1,y:no.y+g.y1},  // canto inferior direito
-      esquerda:{x:no.x+g.x0,y:no.y+g.y1}   // canto inferior esquerdo
-    };
+    esquerda=g.x0; direita=g.x1; topo=g.y0; inferior=g.y1; meioY=g.armY;
   }
-  // demais blocos: âncoras alinhadas às bordas do box
-  return {topo:{x:cx,y:no.y},direita:{x:no.x+w,y:cy},inferior:{x:cx,y:no.y+h},esquerda:{x:no.x,y:cy}};
+  const cx=no.x+(esquerda+direita)/2, cy=no.y+meioY;
+  return {
+    topo:{x:cx,y:no.y+topo}, direita:{x:no.x+direita,y:cy},
+    inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
+  };
 }
-function parAncoras(a,b){
-  const aa=ancoras(a), ba=ancoras(b);
+function parAncoras(aa,ba){
   const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
               ["topo","direita"],["direita","topo"],["inferior","esquerda"],["esquerda","inferior"]];
   let melhor=null, menor=Infinity;
@@ -391,6 +390,7 @@ function caminhoL(p1,p2){
 
 function render(){
   const d=diagramaAtual(); if(!d) return;
+  const pontosPorNo=new Map();
   camadaNos.innerHTML="";
   for(const no of d.no){
     const {w,h}=dimsPadrao(no.tipo);
@@ -399,16 +399,20 @@ function render(){
     g.setAttribute("transform",`translate(${no.x},${no.y})`);
     g.setAttribute("data-id",no.id);
     g.innerHTML=formaSVG(no.tipo,w,h);
+    camadaNos.appendChild(g);
+    const aa=ancoras(no,g,w,h);
+    pontosPorNo.set(no.id,aa);
+    const forma=formaDoTipo(no.tipo);
     let tx=w/2, ty=h/2+5, anchor="middle";
-    if(no.tipo==="alvo"||no.tipo==="barra"){tx=w/2;ty=h+18;anchor="middle";}
+    if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;anchor="middle";}
     else if(no.tipo==="ator"){tx=w/2;ty=h+16;anchor="middle";} // etiqueta abaixo da figura (não sobre as pernas)
-    else if(no.tipo==="limite"){tx=14;ty=26;anchor="start";}
+    else if(forma==="limite"){tx=14;ty=26;anchor="start";}
     else if(no.tipo==="nota"){tx=14;ty=30;anchor="start";}
     const texto=document.createElementNS("http://www.w3.org/2000/svg","text");
     texto.setAttribute("class","no-texto");
     texto.setAttribute("x",tx);texto.setAttribute("y",ty);
     texto.setAttribute("text-anchor",anchor);
-    if(no.tipo!=="inicio"&&no.tipo!=="alvo"){
+    if(forma!=="oval"&&forma!=="alvo"){
       (no.texto||"").split("\n").forEach((ln,i)=>{
         const ts=document.createElementNS("http://www.w3.org/2000/svg","tspan");
         ts.setAttribute("x",tx);ts.setAttribute("dy",i===0?0:15);
@@ -418,7 +422,6 @@ function render(){
       g.appendChild(texto);
     }
   if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
-    const aa=ancoras(no);
     for(const k of ["topo","direita","inferior","esquerda"]){
       const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
       circ.setAttribute("class","ancora");
@@ -449,13 +452,12 @@ function render(){
   }
   g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
     g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoNo(no); };
-    camadaNos.appendChild(g);
   }
   camadaConexoes.innerHTML="";
   for(const s of d.seta){
     const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
     if(!a||!b) continue;
-    const par=parAncoras(a,b);
+    const par=parAncoras(pontosPorNo.get(a.id),pontosPorNo.get(b.id));
     const dPath=caminhoL(par.p1,par.p2);
     const sel=estado.setaSelecionada===s.id;
     const semSeta=s.tipo==="geralizacao";
@@ -522,11 +524,11 @@ function clickSeta(s){
   render();
 }
 function editarTextoNo(no){
-  const atual=no.texto!==undefined?no.texto:(no.tipo==="limite"?"Sistema":"");
+  const atual=no.texto!==undefined?no.texto:(formaDoTipo(no.tipo)==="limite"?"Sistema":"");
   const v=prompt("Edite o texto do bloco:",atual);
   if(v!==null){
     no.texto=v;
-    if(no.tipo==="limite"&&v.trim()==="") no.texto="Sistema";
+    if(formaDoTipo(no.tipo)==="limite"&&v.trim()==="") no.texto="Sistema";
     salvarLocal(); render();
   }
 }
@@ -563,7 +565,7 @@ function adicionarBloco(tipo,x,y){
     x=0; y=0;
   }
   const dim=dimsPadrao(tipo);
-  const no={id:novoId(),tipo,x:Math.round(x-dim.w/2),y:Math.round(y-dim.h/2),texto:tipo==="limite"?"Sistema":""};
+  const no={id:novoId(),tipo,x:Math.round(x-dim.w/2),y:Math.round(y-dim.h/2),texto:formaDoTipo(tipo)==="limite"?"Sistema":""};
   d.no.push(no);
   estado.selecionados.clear(); estado.selecionados.add(no.id);
   estado.setaSelecionada=null;
@@ -684,7 +686,7 @@ function bboxDoCanvas(){
     const dim=dimsPadrao(no.tipo);
     minX=Math.min(minX,no.x); minY=Math.min(minY,no.y);
     maxX=Math.max(maxX,no.x+dim.w); maxY=Math.max(maxY,no.y+dim.h);
-    if(no.tipo==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
+    if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
     if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
   }
   if(!isFinite(minX)){ minX=0;minY=0;maxX=800;maxY=600; }
