@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="24">
+<html lang="pt-BR" data-theme="light" data-version="25">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 
@@ -48,46 +48,39 @@
   <div class="editor-bar">
     <button class="btn btn-secundario" id="btnVoltar" type="button" title="Voltar à tela inicial">← Diagramas</button>
     <input class="titulo" id="tituloDiagrama" type="text" maxlength="80" placeholder="Nome do diagrama" aria-label="Nome do diagrama">
-    <div class="grupo-nome-ator" id="grupoNomeAtor" style="display:none">
-      <label for="campoNomeAtor">Nome do ator</label>
-      <input id="campoNomeAtor" type="text" maxlength="80" placeholder="Ex.: Cliente" aria-label="Nome do ator">
-    </div>
-    <div class="ferr-grupo">
-      <button class="fbtn" id="btnExportarSVG" type="button">🖼️ Exportar SVG</button>
-      <button class="fbtn" id="btnExportarPNG" type="button">🖼️ Exportar PNG</button>
-      <button class="fbtn" id="btnEditarTexto" type="button" title="Editar o texto do bloco ou da seta selecionada">🔤 Editar texto</button>
-    </div>
+    <details class="menu-diagrama" id="menuDiagrama">
+      <summary class="fbtn">Opções</summary>
+      <div class="menu-acoes">
+        <button id="btnExportarSVG" type="button">Exportar SVG</button>
+        <button id="btnExportarPNG" type="button">Exportar PNG</button>
+        <button id="ferrLimpar" type="button">Limpar diagrama…</button>
+      </div>
+    </details>
   </div>
   <div class="layout">
-    <aside class="paleta">
-      <div class="paleta-titulo" id="paletaTitulo">Blocos</div>
-      <p class="paleta-dica">Clique em um bloco para adicionar no centro, ou arraste para o canvas.</p>
+    <aside class="paleta" aria-labelledby="paletaTitulo">
+      <h2 class="paleta-titulo" id="paletaTitulo">Blocos</h2>
       <div class="paleta-lista" id="paletaLista"></div>
-      <div class="paleta-acoes">
-        <b>Dica:</b> ferramenta <b>Selecionar</b>: clique num bloco, arraste para mover, Excluir para remover.
-        <b>Conectar</b>: clique na origem e depois no destino para criar a seta. **Duplo clique num bloco** abre a edição do nome — é só escrever dentro da caixa (Enter salva, Esc cancela). O botão <b>🔤 Editar texto</b> faz o mesmo, e na seta edita o rótulo.
-      </div>
+      <details class="paleta-acoes">
+        <summary>Como usar o editor</summary>
+        <p>Clique em um bloco para inseri-lo no centro ou arraste-o até a posição desejada.</p>
+        <p>Use <kbd>T</kbd> para selecionar e mover. Segure Shift para selecionar vários blocos. Um duplo clique abre o texto do bloco.</p>
+        <p>Use <kbd>C</kbd> para conectar. Clique primeiro na origem e depois no destino.</p>
+      </details>
     </aside>
     <main class="editor-area">
       <div class="ferramentas">
-        <div class="ferr-grupo">
-          <button class="fbtn ativo" id="ferrSelecionar" type="button" title="Selecionar / mover (T)">🖱️ Selecionar</button>
-          <button class="fbtn" id="ferrConectar" type="button" title="Criar seta entre dois blocos (C)">➡️ Conectar</button>
+        <div class="ferr-grupo" role="group" aria-label="Modo de edição">
+          <button class="fbtn ativo" id="ferrSelecionar" type="button" title="Selecionar e mover (T)" aria-pressed="true">Selecionar</button>
+          <button class="fbtn" id="ferrConectar" type="button" title="Conectar blocos (C)" aria-pressed="false">Conectar</button>
         </div>
-        <div class="ferr-divider"></div>
-        <div class="ferr-grupo">
-          <span style="font-size:12.5px;color:var(--texto-2)">Conexão:</span>
-          <div class="ferr-grupo" id="grupoConexoes" style="gap:4px"></div>
-        </div>
-        <div class="ferr-divider"></div>
-        <div class="ferr-grupo">
-          <button class="fbtn" id="ferrExcluir" type="button" title="Excluir selecionados (Delete)">🗑️ Excluir</button>
-          <button class="fbtn" id="ferrLimpar" type="button" title="Limpar todo o canvas">🧹 Limpar</button>
-          <div class="ferr-divider"></div>
-          <button class="fbtn" id="zoomIn" type="button" title="Aproximar">+</button>
-          <span class="zoom-contador" id="zoomContador">100%</span>
-          <button class="fbtn" id="zoomOut" type="button" title="Afastar">−</button>
-          <button class="fbtn" id="zoomReset" type="button" title="Repor zoom">⊡</button>
+        <label id="opcoesConexao" hidden>Tipo de conexão
+          <select id="grupoConexoes"></select>
+        </label>
+        <div class="ferr-grupo zoom" role="group" aria-label="Zoom">
+          <button class="fbtn" id="zoomOut" type="button" aria-label="Afastar">−</button>
+          <button class="fbtn" id="zoomReset" type="button" title="Restaurar zoom de 100%" aria-label="Restaurar zoom de 100%"><span id="zoomContador">100%</span></button>
+          <button class="fbtn" id="zoomIn" type="button" aria-label="Aproximar">+</button>
         </div>
       </div>
       <div class="canvas-wrap" id="canvasWrap">
@@ -109,7 +102,15 @@
           <g id="camadaNos"></g>
         </svg>
         <div class="dica-canvas" id="dicaCanvas">Clique nos blocos da paleta para começar — ou arraste um para o canvas</div>
-        <div class="info-selecionado" id="infoSelecionado" hidden></div>
+      </div>
+      <div class="selecao" id="acoesSelecao" role="group" aria-label="Seleção" hidden>
+        <span id="infoSelecionado"></span>
+        <div class="grupo-nome-ator" id="grupoNomeAtor" style="display:none">
+          <label for="campoNomeAtor">Nome do ator</label>
+          <input id="campoNomeAtor" type="text" maxlength="80" placeholder="Ex.: Cliente">
+        </div>
+        <button class="fbtn" id="btnEditarTexto" type="button">Editar texto</button>
+        <button class="fbtn perigo" id="ferrExcluir" type="button" title="Excluir seleção (Delete)">Excluir</button>
       </div>
     </main>
   </div>
@@ -141,6 +142,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="script.js?v=24"></script>
+<script src="script.js?v=25"></script>
 </body>
 </html>
