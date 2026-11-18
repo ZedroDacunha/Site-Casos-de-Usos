@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="15">
+<html lang="pt-BR" data-theme="light" data-version="16">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 
@@ -92,14 +92,9 @@
             <marker id="setaMarkerSel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
               <path class="seta-marca-sel" d="M0,1 L10,5 L0,9 Z"/>
             </marker>
-            <marker id="setaMarkerVazio" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-              <path class="seta-marca-vazio" d="M0,1 L10,5 L0,9 Z"/>
-            </marker>
-            <marker id="setaMarkerVazioSel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-              <path class="seta-marca-vazio-sel" d="M0,1 L10,5 L0,9 Z"/>
-            </marker>
           </defs>
           <rect id="gradePlano" x="-5000" y="-5000" width="11000" height="11000" fill="url(#gradePadrao)" pointer-events="none"/>
+          <g id="camadaSetasFundo"></g>
           <g id="camadaConexoes"></g>
           <g id="camadaNos"></g>
         </svg>
@@ -136,6 +131,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="script.js?v=15"></script>
+<script src="script.js?v=16"></script>
 </body>
 </html>

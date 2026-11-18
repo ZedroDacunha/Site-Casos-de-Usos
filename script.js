@@ -324,6 +324,7 @@ function renderConexoes(){
 const svg=document.getElementById("canvas");
 const camadaNos=document.getElementById("camadaNos");
 const camadaConexoes=document.getElementById("camadaConexoes");
+const camadaSetasFundo=document.getElementById("camadaSetasFundo");
 
 function aplicarZoomVisual(){
   const wrap=document.getElementById("canvasWrap");
@@ -432,6 +433,21 @@ function parEncaixe(aa,a,bb,b){
 /* Caminho reto entre dois pontos de encaixe — mais natural que o caminho em L */
 function caminhoReto(p1,p2){
   return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+}
+/* Cabeça (ponta) da seta como triângulo SÓLIDO (não vazada): a ponta fica em p2 e
+    a base atrás, na direção de p1->p2. Desenhada numa camada ABAIXO das linhas das
+    setas, para a cabeça ser sólida e as linhas que cruzam por ela ficarem visíveis
+    (não ficarem ocultas por trás da cabeça). */
+function cabecaSeta(p1,p2,tam,larg){
+  tam=tam||10; larg=larg||4.5;
+  const dx=p2.x-p1.x, dy=p2.y-p1.y;
+  const len=Math.hypot(dx,dy)||1;
+  const ux=dx/len, uy=dy/len;
+  const px=-uy, py=ux; // perpendicular à direção
+  const bx=p2.x-ux*tam, by=p2.y-uy*tam; // centro da base (atrás da ponta)
+  const lx=bx+px*larg, ly=by+py*larg;
+  const rx=bx-px*larg, ry=by-py*larg;
+  return `${p2.x},${p2.y} ${lx},${ly} ${rx},${ry}`;
 }
 function caminhoL(p1,p2){
   const dx=p2.x-p1.x, dy=p2.y-p1.y;
@@ -577,6 +593,7 @@ function render(){
   g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
     g.ondblclick=ev=>{ ev.stopPropagation(); editarTextoNo(no); };
   }
+  camadaSetasFundo.innerHTML="";
   camadaConexoes.innerHTML="";
   const fanout=calcularFanout(d,pontosPorNo);
   for(const s of d.seta){
@@ -587,12 +604,19 @@ function render(){
     const sel=estado.setaSelecionada===s.id;
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
-    const marcaFinal=semSeta?"":(vazio?(sel?"url(#setaMarkerVazioSel)":"url(#setaMarkerVazio)"):(sel?"url(#setaMarkerSel)":"url(#setaMarker)"));
     const marca=vazio?`<<${s.tipo}>>`:"";
     const meio={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
     const lblX=meio.x, lblY=meio.y;
+    // cabeça sólida da seta, desenhada ABAIXO das linhas (camada de fundo), para a
+    // ponta não ser vazada e as linhas que cruzam por ela ficarem visíveis
+    if(!semSeta){
+      const pol=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+      pol.setAttribute("points",cabecaSeta(par.p1,par.p2));
+      pol.setAttribute("class","seta-cabeca"+(sel?" selecionada":""));
+      camadaSetasFundo.appendChild(pol);
+    }
     let html=`<path class="conector-hit" d="${dPath}"/>`;
-    html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" marker-end="${marcaFinal}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
+    html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
     if(marca) html+=`<rect class="conector-caixa" x="${lblX-marca.length*2.4-4}" y="${lblY-7}" width="${marca.length*4.8+8}" height="14" rx="4"/>
                      <text class="conector-marca-pequena ${s.tipo}" x="${lblX}" y="${lblY+3.5}" text-anchor="middle">${esc(marca)}</text>`;
     if(s.rotulo&&s.rotulo.trim()){
@@ -868,8 +892,8 @@ function cssExport(){
 .conector-marca.extend{fill:var(--aviso)}
 .seta-marca{fill:var(--texto-2)}
 .seta-marca-sel{fill:var(--primario)}
-.seta-marca-vazio{fill:none;stroke:var(--texto-2);stroke-width:1.6}
-.seta-marca-vazio-sel{fill:none;stroke:var(--primario);stroke-width:1.8}
+.seta-cabeca{fill:var(--texto-2)}
+.seta-cabeca.selecionada{fill:var(--primario)}
 .conector-marca-pequena{font-size:8.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
 .conector-marca-pequena.include{fill:var(--sucesso)}
 .conector-marca-pequena.extend{fill:var(--aviso)}
