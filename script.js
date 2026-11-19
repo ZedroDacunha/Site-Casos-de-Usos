@@ -11,6 +11,7 @@ const CHAVE_TEMA="editor-diagramas-tema";
 
 /* ---------- Estado central ---------- */
 const estado={
+  projetos:[],
   diagramas:[],           // lista de diagramas
   diagramaAtualId:null,   // id do diagrama aberto no editor
   ferramenta:"selecionar", // "selecionar" | "conectar"
@@ -153,14 +154,22 @@ function diagramaAtual(){ return estado.diagramas.find(d=>d.id===estado.diagrama
 
 /* ---------- Persistência ---------- */
 function salvarLocal(){
-  try{ localStorage.setItem(CHAVE_SAVE,JSON.stringify(estado.diagramas)); }catch(e){}
+  try{
+    localStorage.setItem(CHAVE_SAVE,JSON.stringify(dadosColecao()));
+    return true;
+  }catch(e){
+    toast("Não foi possível salvar os dados neste navegador.","erro");
+    return false;
+  }
 }
 function carregarLocal(){
   try{
     const dados=localStorage.getItem(CHAVE_SAVE);
     if(dados){
       const obj=JSON.parse(dados);
-      if(Array.isArray(obj)) estado.diagramas=obj;
+      const colecao=lerColecao(obj);
+      estado.diagramas=colecao.diagramas;
+      estado.projetos=colecao.projetos;
     }
   }catch(e){}
 }
@@ -226,7 +235,8 @@ function renderInicio(){
   const termo=normalizar(busca.value.trim());
   const visiveis=estado.diagramas.filter(d=>normalizar(String(d.nome||"")).includes(termo)).reverse();
   document.getElementById("grupoBusca").hidden=!estado.diagramas.length;
-  document.getElementById("btnExportarJSON").disabled=!estado.diagramas.length;
+  document.getElementById("btnExportarJSON").disabled=!estado.diagramas.length && !estado.projetos.length;
+  renderProjetos();
   const vazio=document.getElementById("vazioDiagramas");
   vazio.hidden=visiveis.length>0;
   vazio.textContent=estado.diagramas.length ? "Nenhum diagrama com esse nome." :
@@ -256,6 +266,7 @@ function excluirDiagrama(id){
   if(!d) return;
   if(!confirm(`Excluir o diagrama "${d.nome}" e todo o seu conteúdo?`)) return;
   estado.diagramas=estado.diagramas.filter(x=>x.id!==id);
+  for(const p of estado.projetos) p.diagramas=p.diagramas.filter(item=>item!==id);
   if(estado.diagramaAtualId===id) estado.diagramaAtualId=null;
   salvarLocal(); renderInicio();
   toast("Diagrama excluído","sucesso");
@@ -427,7 +438,7 @@ function ancoras(no,borda){
 const ladosAtividade=["topo","direita","inferior","esquerda"];
 
 // Preserva as âncoras salvas e atribui as livres mais próximas às setas antigas.
-function conexoesAtividade(d,pontosPorNo){
+function conexoesAtividade(d,pontosPorNo,gravar=true){
   const uso=new Map(), caminhos=new Map();
   let alterado=false;
   for(const id of pontosPorNo.keys()) uso.set(id,{topo:0,direita:0,inferior:0,esquerda:0});
@@ -456,7 +467,7 @@ function conexoesAtividade(d,pontosPorNo){
     if(s.ancoraPara!==destino){s.ancoraPara=destino; uso.get(s.para)[destino]++; alterado=true;}
     caminhos.set(s.id,{p1:aa[origem],p2:bb[destino]});
   }
-  if(alterado) salvarLocal();
+  if(alterado && gravar) salvarLocal();
   return caminhos;
 }
 
@@ -780,13 +791,13 @@ alcasLinha.addEventListener("lostpointercapture",()=>{
   if(gestoLinha){gestoLinha=null; render();}
 });
 
-function render(){
-  const d=diagramaAtual(); if(!d) return;
+function render(d=diagramaAtual(),paraPDF=false){
+  if(!d) return;
   // remove conexões órfãs (um dos blocos não existe mais) — evita setas invisíveis
   // que não podem ser clicadas nem excluídas
   const antesSetas=d.seta.length;
   d.seta=d.seta.filter(s=>d.no.some(n=>n.id===s.de)&&d.no.some(n=>n.id===s.para));
-  if(d.seta.length!==antesSetas) salvarLocal();
+  if(!paraPDF && d.seta.length!==antesSetas) salvarLocal();
   const pontosPorNo=ancorasRender;
   pontosPorNo.clear();
   alcasLinha.replaceChildren();
@@ -860,7 +871,7 @@ function render(){
   const camadaRotulos=document.getElementById("camadaRotulos");
   camadaRotulos.replaceChildren();
   const ocupados=[];
-  const fanout=d.tipo==="atividades" ? conexoesAtividade(d,pontosPorNo) : calcularFanout(d,pontosPorNo);
+  const fanout=d.tipo==="atividades" ? conexoesAtividade(d,pontosPorNo,!paraPDF) : calcularFanout(d,pontosPorNo);
   const nosPorId=new Map(d.no.map(no=>[no.id,no]));
   for(const s of d.seta){
     const par=fanout.get(s.id);
@@ -932,6 +943,7 @@ function render(){
       camadaRotulos.appendChild(grupo);
     }
   }
+  if(paraPDF) return;
   const dica=document.getElementById("dicaCanvas");
   dica.hidden=d.no.length>0;
   if(!d.no.length) dica.textContent=document.getElementById("painelBlocos").hidden ?
@@ -1290,8 +1302,8 @@ document.getElementById("btnTema").addEventListener("click",()=>{
 /* =========================================================================
    Exportação SVG/PNG e import/export JSON
    ========================================================================= */
-function bboxDoCanvas(){
-  const d=diagramaAtual(); if(!d) return {x:0,y:0,w:800,h:600};
+function bboxDoCanvas(d=diagramaAtual()){
+  if(!d) return {x:0,y:0,w:800,h:600};
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const no of d.no){
     const dim=dimsPadrao(no.tipo);
@@ -1352,8 +1364,8 @@ function cssExport(formato){
 .conector-marca-pequena{font-size:10px}` : ""}
 `;
 }
-function construirSVGExport(formato){
-  const bb=bboxDoCanvas();
+function construirSVGExport(formato,d=diagramaAtual()){
+  const bb=bboxDoCanvas(d);
   const clone=svg.cloneNode(true);
   clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
   clone.querySelector("#gradePlano")?.remove();
@@ -1421,7 +1433,7 @@ function exportar(tipo){
 document.getElementById("btnExportarSVG").addEventListener("click",()=>exportar("svg"));
 document.getElementById("btnExportarPNG").addEventListener("click",()=>exportar("png"));
 document.getElementById("btnExportarJSON").addEventListener("click",()=>{
-  download(nomeArquivo("editor-diagramas",".json"),JSON.stringify(estado.diagramas,null,2),"application/json");
+  download(nomeArquivo("editor-diagramas",".json"),JSON.stringify(dadosColecao(),null,2),"application/json");
   toast("JSON exportado ✓","sucesso");
 });
 document.getElementById("btnImportarJSON").addEventListener("click",()=>document.getElementById("arquivoJSON").click());
@@ -1431,13 +1443,14 @@ document.getElementById("arquivoJSON").addEventListener("change",e=>{
   leitor.onload=()=>{
     try{
       const obj=JSON.parse(leitor.result);
-      if(!Array.isArray(obj) || obj.some(d=>!d || !TIPOS[d.tipo] || !Array.isArray(d.no) || !Array.isArray(d.seta))) throw new Error("estrutura inválida");
-      if(estado.diagramas.length && !confirm("Substituir os diagramas deste navegador pelos do arquivo JSON?")){
+      const colecao=lerColecao(obj);
+      if((estado.diagramas.length || estado.projetos.length) && !confirm("Substituir a coleção local de diagramas e projetos pela coleção deste arquivo?")){
         e.target.value="";
         return;
       }
       document.getElementById("buscaDiagramas").value="";
-      estado.diagramas=obj;
+      estado.diagramas=colecao.diagramas;
+      estado.projetos=colecao.projetos;
       estado.diagramaAtualId=null;
       salvarLocal(); renderInicio();
       toast("JSON importado ✓","sucesso");

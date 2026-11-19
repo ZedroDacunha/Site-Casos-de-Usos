@@ -341,3 +341,16 @@ html[data-theme="dark"] .modelo-roteiro{--tinta:#f1d0ae;--folha:#583e32;--campo:
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
 }
+
+/* Organização das páginas do projeto */
+.incluir-diagrama{display:flex;align-items:center;gap:8px}
+.incluir-diagrama select{min-width:0}
+#formProjeto h4{margin:20px 0 8px;font-size:14px}
+#paginasProjeto{padding-left:2em}
+#paginasProjeto li{padding:8px 0;border-bottom:1px solid var(--borda)}
+.pagina-linha{display:flex;align-items:center;gap:4px}
+.pagina-linha span{flex:1;overflow-wrap:anywhere;min-width:0}
+.pagina-linha button{padding:5px 8px}
+#projetoVazio,#progressoPDF{font-size:13px;color:var(--texto-2);line-height:1.5}
+#progressoPDF{margin-top:12px}
+#telaEditor.preparando-pdf{position:fixed;display:flex;left:-12000px;top:0;width:1100px;height:800px;visibility:hidden;pointer-events:none}
