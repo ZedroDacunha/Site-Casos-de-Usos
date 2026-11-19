@@ -194,7 +194,11 @@ function capturarPaginas(projeto){
       const escala=Math.min(4,2400/Math.max(bb.w,bb.h));
       svg.setAttribute("width",Math.max(1,Math.round(bb.w*escala)));
       svg.setAttribute("height",Math.max(1,Math.round(bb.h*escala)));
-      return {nome:d.nome||"Sem título",bb,svg:new XMLSerializer().serializeToString(svg)};
+      return {
+        nome:d.nome||"Sem título", tipo:TIPOS[d.tipo].nome,
+        blocos:d.no.length, conexoes:d.seta.length, bb,
+        svg:new XMLSerializer().serializeToString(svg)
+      };
     });
   }finally{tela.classList.remove("preparando-pdf");}
 }
@@ -209,104 +213,6 @@ async function imagemDoDiagrama(pagina){
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
     return new Uint8Array(await blob.arrayBuffer());
   }finally{URL.revokeObjectURL(url);}
-}
-// Usa texto selecionável quando a fonte PDF cobre o título. Para outros alfabetos,
-// usa a fonte do navegador para conservar os caracteres no documento.
-async function escreverTitulo(pdf,pagina,texto,fonte,tamanho,x,topo,largura){
-  try{
-    fonte.encodeText(texto);
-  }catch{
-    const canvas=document.createElement("canvas");
-    canvas.width=Math.ceil(largura*3); canvas.height=(tamanho+8)*3;
-    const ctx=canvas.getContext("2d");
-    ctx.scale(3,3);ctx.font=tamanho+"px sans-serif";ctx.fillText(texto,0,tamanho,largura);
-    const imagem=await pdf.embedPng(canvas.toDataURL("image/png"));
-    pagina.drawImage(imagem,{x,y:topo-tamanho-8,width:largura,height:tamanho+8});
-    return topo-tamanho-12;
-  }
-  let linha="";
-  for(const letra of texto){
-    if(linha && fonte.widthOfTextAtSize(linha+letra,tamanho)>largura){
-      pagina.drawText(linha,{x,y:topo-tamanho,font:fonte,size:tamanho});
-      topo-=tamanho+5; linha="";
-    }
-    linha+=letra;
-  }
-  pagina.drawText(linha,{x,y:topo-tamanho,font:fonte,size:tamanho});
-  return topo-tamanho-10;
-}
-// Quebra por palavras e admite identificadores maiores que uma linha.
-function* linhasRequisito(texto,largura,medir){
-  for(const paragrafo of texto.split(/\r\n|[\r\n]/)){
-    let linha="";
-    for(const palavra of paragrafo.trim().split(/\s+/)){
-      const candidata=linha?linha+" "+palavra:palavra;
-      if(medir(candidata)<=largura){linha=candidata;continue;}
-      if(linha) yield linha;
-      linha="";
-      for(const letra of palavra){
-        if(linha && medir(linha+letra)>largura){yield linha;linha="";}
-        linha+=letra;
-      }
-    }
-    yield linha;
-  }
-}
-async function escreverRequisitosPDF(pdf,nome,requisitos,formato,titulo,fonte){
-  const margem=36,tamanho=11,largura=formato[0]-2*margem;
-  const canvas=document.createElement("canvas").getContext("2d");
-  canvas.font=tamanho+"px sans-serif";
-  function medir(linha){
-    try{return fonte.widthOfTextAtSize(linha,tamanho);}
-    catch{return canvas.measureText(linha).width;}
-  }
-  let pagina,topo;
-  async function novaPagina(secao){
-    pagina=pdf.addPage(formato);
-    topo=await escreverTitulo(pdf,pagina,nome,fonte,10,margem,formato[1]-margem,largura);
-    topo=await escreverTitulo(pdf,pagina,secao,titulo,18,margem,topo,largura);
-  }
-  for(const [tipo,secao] of Object.entries(tiposRequisito)){
-    const grupo=requisitos.filter(r=>r.tipo===tipo);
-    if(!grupo.length) continue;
-    await novaPagina(secao);
-    for(const r of grupo){
-      const codigo=codigoRequisito(r);
-      if(topo<95) await novaPagina(secao);
-      topo=await escreverTitulo(pdf,pagina,codigo,titulo,11,margem,topo,largura);
-      for(const linha of linhasRequisito(r.descricao,largura-2,medir)){
-        if(topo<64){
-          await novaPagina(secao);
-          topo=await escreverTitulo(pdf,pagina,codigo+" (continuação)",titulo,11,margem,topo,largura);
-        }
-        await escreverTitulo(pdf,pagina,linha,fonte,tamanho,margem,topo,largura);
-        topo-=17;
-      }
-      topo-=10;
-    }
-  }
-}
-async function montarPDF(lib,nome,paginas,obterImagem,progresso,requisitos=[]){
-  const pdf=await lib.PDFDocument.create();
-  pdf.setTitle(nome);
-  const titulo=await pdf.embedFont(lib.StandardFonts.HelveticaBold);
-  const texto=await pdf.embedFont(lib.StandardFonts.Helvetica);
-  const [curto,longo]=lib.PageSizes.A4, margem=36;
-  if(requisitos.length) await escreverRequisitosPDF(pdf,nome,requisitos,[curto,longo],titulo,texto);
-  for(const [i,item] of paginas.entries()){
-    progresso(i+1,paginas.length);
-    const {w,h}=item.bb;
-    const pagina=pdf.addPage(w>h?[longo,curto]:[curto,longo]);
-    const largura=pagina.getWidth()-2*margem;
-    let topo=await escreverTitulo(pdf,pagina,nome,texto,10,margem,pagina.getHeight()-margem,largura);
-    topo=await escreverTitulo(pdf,pagina,item.nome,titulo,19,margem,topo,largura);
-    const imagem=await pdf.embedPng(await obterImagem(item));
-    const base=margem+16, escala=Math.min(largura/w,(topo-base)/h);
-    pagina.drawImage(imagem,{x:margem+(largura-w*escala)/2,y:topo-h*escala,width:w*escala,height:h*escala});
-  }
-  const folhas=pdf.getPages();
-  folhas.forEach((pagina,i)=>pagina.drawText((i+1)+" / "+folhas.length,{x:margem,y:22,size:9,font:texto}));
-  return pdf.save();
 }
 async function exportarProjeto(projeto){
   if(exportandoProjeto||(!projeto.diagramas.length && !projeto.requisitos.length)) return;
