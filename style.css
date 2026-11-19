@@ -217,8 +217,9 @@ body{
 .forma-ator{fill:none;stroke:var(--texto-2)}
 /* área de clique transparente: cobre todo o box do bloco e recebe o ponteiro */
 .hit-no{fill:transparent;pointer-events:all}
-/* retângulo invisível ao redor do ator: guia de alinhamento das âncoras (não é visível) */
-.alinha-ator{fill:none;stroke:none;pointer-events:none}
+.no-grp:hover .area-ator,.no-grp.selecionado .area-ator,.no-grp.origem .area-ator{
+  stroke:var(--primario);stroke-width:1;stroke-dasharray:4 4
+}
 .no-grp.selecionado .forma-pre{stroke:var(--primario);stroke-width:2.6}
 .no-grp.origem .forma-pre{stroke:var(--aviso);stroke-width:2.8}
 .no-grp:hover .forma-pre{stroke:var(--primario-2)}

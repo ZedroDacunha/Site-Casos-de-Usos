@@ -371,9 +371,7 @@ function posMundo(clientX,clientY){
   const w=vb.width||r.width, h=vb.height||r.height;
   return {x:(clientX-r.left)/r.width*w+vb.x, y:(clientY-r.top)/r.height*h+vb.y};
 }
-/* geometria do ator (bonequinho): coordenadas relativas ao grupo do bloco.
-   o retângulo invisível que envolve a figura vai de x0 a x1 (pontas dos braços)
-   e de y0 a y1 (topo da cabeça até a base das pernas) */
+/* Geometria do desenho do ator em coordenadas locais. */
 function geomAtor(w,h){
   const headR=Math.min(15,(h-40)/4);
   const headY=headR+9;
@@ -382,19 +380,19 @@ function geomAtor(w,h){
   const armY=bodyTop+(bodyBot-bodyTop)*0.45;
   const armDx=Math.min(26,w/2-10);
   const legBot=h-4;
-  return {headR,headY,bodyTop,bodyBot,armY,armDx,legBot,x0:w/2-armDx,y0:headY-headR,x1:w/2+armDx,y1:legBot};
+  return {headR,headY,bodyTop,bodyBot,armY,armDx,legBot};
 }
-function ancoras(no,grupo,w,h){
-  // A primeira forma é o contorno externo. Textos e áreas de clique ficam de fora.
-  const borda=grupo.querySelector(".forma-pre").getBBox();
-  let esquerda=borda.x, direita=borda.x+borda.width;
-  let topo=borda.y, inferior=borda.y+borda.height;
-  let meioY=(topo+inferior)/2;
-  if(no.tipo==="ator"){
-    const g=geomAtor(w,h);
-    esquerda=g.x0; direita=g.x1; topo=g.y0; inferior=g.y1; meioY=g.armY;
-  }
-  const cx=no.x+(esquerda+direita)/2, cy=no.y+meioY;
+function areaDoAtor(w,h,texto){
+  const nome=texto.getBBox();
+  const x=Math.min(0,nome.width ? nome.x-6 : 0);
+  const direita=Math.max(w,nome.width ? nome.x+nome.width+6 : w);
+  const inferior=Math.max(h,nome.height ? nome.y+nome.height+5 : h);
+  return {x,y:0,width:direita-x,height:inferior};
+}
+function ancoras(no,borda){
+  const esquerda=borda.x, direita=borda.x+borda.width;
+  const topo=borda.y, inferior=borda.y+borda.height;
+  const cx=no.x+(esquerda+direita)/2, cy=no.y+(topo+inferior)/2;
   return {
     topo:{x:cx,y:no.y+topo}, direita:{x:no.x+direita,y:cy},
     inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
@@ -518,10 +516,22 @@ function pontoMeio(p1,p2){
 }
 /* Cada lado do bloco distribui as pontas que chegam e saem dele.
    A ordem acompanha a posição do outro bloco para evitar cruzamentos locais. */
+function bordaDoAtor(aa,p){
+  const x=Math.max(aa.esquerda.x,Math.min(aa.direita.x,p.x));
+  const y=Math.max(aa.topo.y,Math.min(aa.inferior.y,p.y));
+  const lados=[{x:aa.esquerda.x,y},{x:aa.direita.x,y},{x,y:aa.topo.y},{x,y:aa.inferior.y}];
+  return lados.reduce((a,b)=>Math.hypot(b.x-p.x,b.y-p.y)<Math.hypot(a.x-p.x,a.y-p.y)?b:a);
+}
 function calcularFanout(d,pontosPorNo){
+  const atores=new Map(d.no.filter(no=>no.tipo==="ator").map(no=>[no.id,no]));
   const lados=new Map(), pares=new Map();
   function registrar(id,ponto,alvo,seta){
     const aa=pontosPorNo.get(id);
+    const ator=atores.get(id);
+    const manual=id===seta.de ? seta.pontoDe : seta.pontoPara;
+    if(ator && manual){
+      Object.assign(ponto,bordaDoAtor(aa,{x:ator.x+manual.x,y:ator.y+manual.y}));
+    }
     const ladosDoNo=lados.get(id)||new Map();
     lados.set(id,ladosDoNo);
     const bordas=[
@@ -537,7 +547,7 @@ function calcularFanout(d,pontosPorNo){
       const max=eixo==="y"?aa.inferior.y:aa.direita.x;
       ladosDoNo.set(lado,{eixo,min,max,pontas:[]});
     }
-    ponto[normal]+=4*sinal;
+    if(!ator) ponto[normal]+=4*sinal;
     // Ordena as setas de ida e volta pela perpendicular ao sentido da viagem.
     // Na borda vertical distribuímos em y; na horizontal, em x (sinal oposto).
     const sentido=id===seta.de ? sinal : -sinal;
@@ -592,7 +602,7 @@ function posicionarRotulo(tracado,largura,comTexto,ocupados){
 const contornosPorTipo=new Map();
 function medirContorno(no,grupo){
   if(contornosPorTipo.has(no.tipo)) return;
-  const formas=no.tipo==="ator" ? grupo.querySelectorAll(".forma-ator") : [grupo.querySelector(".forma-pre")];
+  const formas=[grupo.querySelector(".forma-pre")];
   const contornos=Array.from(formas,forma=>{
     const comprimento=forma.getTotalLength();
     const n=Math.max(1,Math.ceil(comprimento/3));
@@ -601,6 +611,7 @@ function medirContorno(no,grupo){
   contornosPorTipo.set(no.tipo,contornos);
 }
 function encaixeNoContorno(no,alvo){
+  if(no.tipo==="ator") return bordaDoAtor(ancorasRender.get(no.id),alvo);
   const x=alvo.x-no.x,y=alvo.y-no.y;
   let melhor,menor=Infinity;
   for(const parte of contornosPorTipo.get(no.tipo)){
@@ -763,9 +774,6 @@ function render(){
     g.setAttribute("data-id",no.id);
     g.innerHTML=formaSVG(no.tipo,w,h);
     camadaNos.appendChild(g);
-    const aa=ancoras(no,g,w,h);
-    pontosPorNo.set(no.id,aa);
-    if(d.tipo!=="atividades") medirContorno(no,g);
     const forma=formaDoTipo(no.tipo);
     let tx=w/2, ty=h/2+5, anchor="middle";
     if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;anchor="middle";}
@@ -785,13 +793,18 @@ function render(){
       });
       g.appendChild(texto);
     }
+    const ator=no.tipo==="ator";
+    const borda=ator ? areaDoAtor(w,h,texto) : g.querySelector(".forma-pre").getBBox();
+    const aa=ancoras(no,borda);
+    pontosPorNo.set(no.id,aa);
+    if(!ator && d.tipo!=="atividades") medirContorno(no,g);
   // área de clique: cobre todo o box do bloco (transparente) — permite clicar e
   // arrastar em qualquer ponto do bloco, inclusive em áreas vazias da figura do ator
   const hit=document.createElementNS("http://www.w3.org/2000/svg","rect");
-  hit.setAttribute("class","hit-no");
-  hit.setAttribute("x",0); hit.setAttribute("y",0);
-  hit.setAttribute("width",w); hit.setAttribute("height",h);
-  hit.setAttribute("rx",4);
+  hit.setAttribute("class",ator?"hit-no area-ator":"hit-no");
+  hit.setAttribute("x",ator?borda.x:0); hit.setAttribute("y",0);
+  hit.setAttribute("width",ator?borda.width:w); hit.setAttribute("height",ator?borda.height:h);
+  hit.setAttribute("rx",ator?0:4);
   g.appendChild(hit);
   if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
     for(const k of ladosAtividade){
@@ -805,17 +818,6 @@ function render(){
     }
   }
 
-  // retângulo invisível ao redor do ator: envolve a figura (topo da cabeça, pontas
-  // dos braços, base das pernas) — guia de alinhamento das âncoras (não é visível)
-  if(no.tipo==="ator"){
-    const geo=geomAtor(w,h);
-    const alinha=document.createElementNS("http://www.w3.org/2000/svg","rect");
-    alinha.setAttribute("class","alinha-ator");
-    alinha.setAttribute("x",geo.x0); alinha.setAttribute("y",geo.y0);
-    alinha.setAttribute("width",geo.x1-geo.x0); alinha.setAttribute("height",geo.y1-geo.y0);
-    alinha.setAttribute("rx",4);
-    g.appendChild(alinha);
-  }
     g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
     // duplo-clique: seleciona e abre a edição inline do texto (trocar o nome
     // diretamente na caixa) — qualquer ferramenta, incluse conectar. O clique
@@ -839,8 +841,8 @@ function render(){
     if(!par) continue;
     if(d.tipo!=="atividades"){
       const a=nosPorId.get(s.de),b=nosPorId.get(s.para);
-      par.p1=s.pontoDe ? {x:a.x+s.pontoDe.x,y:a.y+s.pontoDe.y} : encaixeNoContorno(a,par.p1);
-      par.p2=s.pontoPara ? {x:b.x+s.pontoPara.x,y:b.y+s.pontoPara.y} : encaixeNoContorno(b,par.p2);
+      if(a.tipo!=="ator") par.p1=s.pontoDe ? {x:a.x+s.pontoDe.x,y:a.y+s.pontoDe.y} : encaixeNoContorno(a,par.p1);
+      if(b.tipo!=="ator") par.p2=s.pontoPara ? {x:b.x+s.pontoPara.x,y:b.y+s.pontoPara.y} : encaixeNoContorno(b,par.p2);
     }
     const gesto=gestoLinha?.id===s.id ? gestoLinha : null;
     if(gesto?.pos && gesto.acao==="de") par.p1=gesto.pos;
@@ -1268,7 +1270,11 @@ function bboxDoCanvas(){
     minX=Math.min(minX,no.x); minY=Math.min(minY,no.y);
     maxX=Math.max(maxX,no.x+dim.w); maxY=Math.max(maxY,no.y+dim.h);
     if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
-    if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
+    if(no.tipo==="ator"){
+      const aa=ancorasRender.get(no.id);
+      minX=Math.min(minX,aa.esquerda.x); maxX=Math.max(maxX,aa.direita.x);
+      maxY=Math.max(maxY,aa.inferior.y);
+    }
   }
   for(const camada of [camadaConexoes,camadaSetasFundo,document.getElementById("camadaRotulos")]){
     if(!camada.childElementCount) continue;
@@ -1325,7 +1331,7 @@ function construirSVGExport(formato){
   clone.querySelector("#gradePlano")?.remove();
   clone.querySelector("#alcasLinha")?.remove();
   const contNos=clone.querySelector("#camadaNos");
-  if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alinha-ator").forEach(n=>n.remove());
+  if(contNos) contNos.querySelectorAll(".ancora,.hit-no").forEach(n=>n.remove());
   const contSetas=clone.querySelector("#camadaConexoes");
   if(contSetas) contSetas.querySelectorAll(".conector-hit").forEach(n=>n.remove());
   clone.setAttribute("viewBox",`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
