@@ -399,21 +399,6 @@ function ancoras(no,grupo,w,h){
     inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
   };
 }
-/* pontos de conexão sem depender do DOM (usa o box de dimsPadrao + geomAtor).
-   Usado no bbox de exportação, onde não há grupo renderizado para consultar getBBox */
-function ancorasDados(no){
-  const {w,h}=dimsPadrao(no.tipo);
-  let esquerda=0, direita=w, topo=0, inferior=h, meioY=h/2;
-  if(no.tipo==="ator"){
-    const g=geomAtor(w,h);
-    esquerda=g.x0; direita=g.x1; topo=g.y0; inferior=g.y1; meioY=g.armY;
-  }
-  const cx=no.x+(esquerda+direita)/2, cy=no.y+meioY;
-  return {
-    topo:{x:cx,y:no.y+topo}, direita:{x:no.x+direita,y:cy},
-    inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
-  };
-}
 function parAncoras(aa,ba){
   const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
               ["topo","direita"],["direita","topo"],["inferior","esquerda"],["esquerda","inferior"]];
@@ -437,7 +422,7 @@ function centroAncora(aa){
    na direção de (tx,ty) com a caixa delimitadora. Isso dá um ponto de encaixe em
    QUALQUER lugar do perímetro (não só os 4 pontos médios dos lados), deixando o
    diagrama menos rígido e com muito mais possibilidades de encaixe. */
-function pontoFrontal(aa,no,tx,ty){
+function pontoFrontal(aa,tx,ty){
   const c=centroAncora(aa);
   const dx=tx-c.x, dy=ty-c.y;
   if(Math.abs(dx)<0.001&&Math.abs(dy)<0.001) return c;
@@ -451,11 +436,11 @@ function pontoFrontal(aa,no,tx,ty){
 }
 /* Par de pontos de encaixe: ponto de saída de A na direção de B, e ponto de
    entrada de B na direção de A — os dois pontos "enfrentam" um ao outro. */
-function parEncaixe(aa,a,bb,b){
+function parEncaixe(aa,bb){
   const ca=centroAncora(aa), cb=centroAncora(bb);
   return {
-    p1:pontoFrontal(aa,a,cb.x,cb.y),
-    p2:pontoFrontal(bb,b,ca.x,ca.y)
+    p1:pontoFrontal(aa,cb.x,cb.y),
+    p2:pontoFrontal(bb,ca.x,ca.y)
   };
 }
 /* Caminho reto entre dois pontos de encaixe — mais natural que o caminho em L */
@@ -497,57 +482,72 @@ function pontoMeio(p1,p2){
   if(meio<=ady) return {x:p1.x, y:p1.y+(dy>0?meio:-meio)};
   return {x:p1.x+(dx>0?(meio-ady):-(meio-ady)), y:p2.y};
 }
-/* Distribui os pontos de partida/chegada das setas: cada seta usa o ponto de
-   encaixe (frente) na borda do bloco, e quando várias setas saem do mesmo bloco
-   são ordenadas por ângulo e deslocadas perpendicularmente (fan-out), além do
-   afastamento da borda — as setas não ficam sobrepostas entre si nem coladas no
-   contorno, e o encaixe pode acontecer em qualquer ponto do perímetro. */
+/* Cada lado do bloco distribui as pontas que chegam e saem dele.
+   A ordem acompanha a posição do outro bloco para evitar cruzamentos locais. */
 function calcularFanout(d,pontosPorNo){
-  const SPACING=10, GAP=4;
-  const pares=[];
+  const lados=new Map(), pares=new Map();
+  function registrar(id,ponto,alvo,seta){
+    const aa=pontosPorNo.get(id);
+    const ladosDoNo=lados.get(id)||new Map();
+    lados.set(id,ladosDoNo);
+    const bordas=[
+      ["esquerda","x",-1],["direita","x",1],["topo","y",-1],["inferior","y",1]
+    ];
+    const [lado,normal,sinal]=bordas.reduce((melhor,atual)=>{
+      const distancia=([nome,eixo])=>Math.abs(ponto[eixo]-aa[nome][eixo]);
+      return distancia(atual)<distancia(melhor)?atual:melhor;
+    });
+    const eixo=normal==="x"?"y":"x";
+    if(!ladosDoNo.has(lado)){
+      const min=eixo==="y"?aa.topo.y:aa.esquerda.x;
+      const max=eixo==="y"?aa.inferior.y:aa.direita.x;
+      ladosDoNo.set(lado,{eixo,min,max,pontas:[]});
+    }
+    ponto[normal]+=4*sinal;
+    ladosDoNo.get(lado).pontas.push({ponto,alvo:alvo[eixo],id:seta.id});
+  }
   for(const s of d.seta){
-    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
-    if(!a||!b) continue;
-    const aa=pontosPorNo.get(a.id), bb=pontosPorNo.get(b.id);
+    const aa=pontosPorNo.get(s.de), bb=pontosPorNo.get(s.para);
     if(!aa||!bb) continue;
-    pares.push({s,a,b,aa,bb,par:parEncaixe(aa,a,bb,b)});
+    const a=centroAncora(aa), b=centroAncora(bb);
+    const {p1,p2}=parEncaixe(aa,bb);
+    registrar(s.de,p1,b,s); registrar(s.para,p2,a,s);
+    pares.set(s.id,{p1,p2});
   }
-  // agrupar por nó de origem e ordenar por ângulo para o fan-out angular
-  const porOrigem=new Map();
-  for(const item of pares){
-    const arr=porOrigem.get(item.a.id)||[];
-    arr.push(item);
-    porOrigem.set(item.a.id,arr);
+  for(const grupos of lados.values()){
+    for(const {eixo,min,max,pontas} of grupos.values()){
+      if(pontas.length<2) continue;
+      pontas.sort((a,b)=>a.ponto[eixo]-b.ponto[eixo] || a.alvo-b.alvo || String(a.id).localeCompare(String(b.id)));
+      const margem=Math.min(6,(max-min)/4);
+      const passo=Math.min(22,(max-min-2*margem)/(pontas.length-1));
+      let anterior=min+margem-passo;
+      pontas.forEach(({ponto},i)=>{
+        const limite=max-margem-(pontas.length-1-i)*passo;
+        ponto[eixo]=Math.min(limite,Math.max(anterior+passo,ponto[eixo]));
+        anterior=ponto[eixo];
+      });
+    }
   }
-  for(const [id,arr] of porOrigem){
-    arr.sort((x,y)=>{
-      const ca=centroAncora(x.aa);
-      const cb=centroAncora(y.aa);
-      return Math.atan2(x.par.p1.y-ca.y,x.par.p1.x-ca.x)-
-             Math.atan2(y.par.p1.y-cb.y,y.par.p1.x-cb.x);
-    });
-    arr.forEach((item,i)=>item.iO=i);
-  }
-  const out=new Map();
-  for(const {s,a,b,aa,bb,par,iO} of pares){
-    const nO=(porOrigem.get(a.id)||[]).length||1;
-    const off=(iO-(nO-1)/2)*SPACING;
-    const dx=par.p2.x-par.p1.x, dy=par.p2.y-par.p1.y;
-    const len=Math.hypot(dx,dy)||1;
-    const px=-dy/len, py=dx/len; // perpendicular à direção da seta
-    out.set(s.id,{
-      p1:afastarEncaixe(par.p1,aa,a,GAP,px*off,py*off),
-      p2:afastarEncaixe(par.p2,bb,b,GAP,px*off,py*off)
-    });
-  }
-  return out;
+  return pares;
 }
-function afastarEncaixe(p,aa,no,GAP,dx,dy){
-  const c=centroAncora(aa);
-  let nx=p.x-c.x, ny=p.y-c.y;
-  const nl=Math.hypot(nx,ny)||1;
-  nx/=nl; ny/=nl; // normal de saída (de centro até o ponto de encaixe)
-  return {x:p.x+nx*GAP+dx, y:p.y+ny*GAP+dy};
+
+/* Duas marcas próximas podem ser mais largas que o espaço entre as setas.
+   Procura uma posição livre ao longo da própria conexão, começando pelo centro. */
+function posicionarRotulo(par,largura,comTexto,ocupados){
+  let melhor, menor=Infinity;
+  for(const t of [.5,.35,.65,.2,.8]){
+    const x=par.p1.x+(par.p2.x-par.p1.x)*t, y=par.p1.y+(par.p2.y-par.p1.y)*t;
+    const caixa={x1:x-largura/2-3,x2:x+largura/2+3,y1:y-(comTexto?32:10),y2:y+10};
+    let area=0;
+    for(const c of ocupados){
+      area+=Math.max(0,Math.min(c.x2,caixa.x2)-Math.max(c.x1,caixa.x1))*
+            Math.max(0,Math.min(c.y2,caixa.y2)-Math.max(c.y1,caixa.y1));
+    }
+    if(area<menor){melhor={x,y,caixa};menor=area;}
+    if(area===0) break;
+  }
+  ocupados.push(melhor.caixa);
+  return melhor;
 }
 
 function render(){
@@ -631,18 +631,18 @@ function render(){
   }
   camadaSetasFundo.innerHTML="";
   camadaConexoes.innerHTML="";
+  const camadaRotulos=document.getElementById("camadaRotulos");
+  camadaRotulos.replaceChildren();
+  const ocupados=[];
   const fanout=calcularFanout(d,pontosPorNo);
   for(const s of d.seta){
-    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
-    if(!a||!b) continue;
-    const par=fanout.get(s.id)||parEncaixe(pontosPorNo.get(a.id),a,pontosPorNo.get(b.id),b);
+    const par=fanout.get(s.id);
+    if(!par) continue;
     const dPath=caminhoReto(par.p1,par.p2);
     const sel=estado.setaSelecionada===s.id;
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
     const marca=vazio?`<<${s.tipo}>>`:"";
-    const meio={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
-    const lblX=meio.x, lblY=meio.y;
     // cabeça sólida da seta, desenhada ABAIXO das linhas (camada de fundo), para a
     // ponta não ser vazada e as linhas que cruzam por ela ficarem visíveis
     if(!semSeta){
@@ -653,11 +653,18 @@ function render(){
     }
     let html=`<path class="conector-hit" d="${dPath}"/>`;
     html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
-    if(marca) html+=`<rect class="conector-caixa" x="${lblX-marca.length*2.4-4}" y="${lblY-7}" width="${marca.length*4.8+8}" height="14" rx="4"/>
-                     <text class="conector-marca-pequena ${s.tipo}" x="${lblX}" y="${lblY+3.5}" text-anchor="middle">${esc(marca)}</text>`;
-    if(s.rotulo&&s.rotulo.trim()){
-      html+=`<rect class="conector-caixa" x="${lblX-s.rotulo.length*3.6-6}" y="${lblY-22}" width="${s.rotulo.length*7.2+12}" height="18" rx="6" opacity=".95"/>
-             <text class="conector-marca" x="${lblX}" y="${lblY-8}" text-anchor="middle">${esc(s.rotulo)}</text>`;
+    const texto=(s.rotulo||"").trim();
+    let rotulos="";
+    if(marca||texto){
+      const larguraMarca=marca.length*5.5+10, larguraTexto=texto.length*7.2+12;
+      const {x,y}=posicionarRotulo(par,Math.max(larguraMarca,larguraTexto),Boolean(texto),ocupados);
+      if(marca) rotulos+=`<rect class="conector-caixa" x="${x-larguraMarca/2}" y="${y-8}" width="${larguraMarca}" height="16" rx="4"/>
+        <text class="conector-marca-pequena ${s.tipo}" x="${x}" y="${y+3}" text-anchor="middle">${esc(marca)}</text>`;
+      if(texto){
+        const topo=marca?y-29:y-9;
+        rotulos+=`<rect class="conector-caixa" x="${x-larguraTexto/2}" y="${topo}" width="${larguraTexto}" height="18" rx="5"/>
+          <text class="conector-marca" x="${x}" y="${topo+13}" text-anchor="middle">${esc(texto)}</text>`;
+      }
     }
     const g=document.createElementNS("http://www.w3.org/2000/svg","g");
     g.setAttribute("data-seta",s.id);
@@ -668,6 +675,12 @@ function render(){
     // duplo-clique seleciona a seta (qualquer ferramenta)
     g.ondblclick=ev=>{ ev.stopPropagation(); selecionarSeta(s); };
     camadaConexoes.appendChild(g);
+    if(rotulos){
+      const grupo=g.cloneNode(false);
+      grupo.innerHTML=rotulos;
+      grupo.onclick=g.onclick; grupo.ondblclick=g.ondblclick;
+      camadaRotulos.appendChild(grupo);
+    }
   }
   const dica=document.getElementById("dicaCanvas");
   dica.style.display=d.no.length===0?"block":"none";
@@ -1022,22 +1035,11 @@ function bboxDoCanvas(){
     if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
     if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
   }
-  // inclui as caixas de rótulo das setas (marca include/extend e rótulo do usuário)
-  // — usa a mesma distribuição de âncoras (encaixe/fan-out) da renderização, para o
-  // rótulo ficar no mesmo ponto que o renderizado
-  const pontosExport=new Map();
-  for(const no of d.no) pontosExport.set(no.id,ancorasDados(no));
-  const fanoutExport=calcularFanout(d,pontosExport);
-  for(const s of d.seta){
-    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
-    if(!a||!b) continue;
-    const par=fanoutExport.get(s.id)||parEncaixe(ancorasDados(a),a,ancorasDados(b),b);
-    const m={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
-    let meia=0;
-    if(s.tipo==="include"||s.tipo==="extend") meia=28;
-    if(s.rotulo&&s.rotulo.trim()) meia=Math.max(meia, s.rotulo.length*3.6+6);
-    minX=Math.min(minX,m.x-meia); maxX=Math.max(maxX,m.x+meia);
-    minY=Math.min(minY,m.y-22); maxY=Math.max(maxY,m.y+8);
+  const camadaRotulos=document.getElementById("camadaRotulos");
+  if(camadaRotulos.childElementCount){
+    const r=camadaRotulos.getBBox();
+    minX=Math.min(minX,r.x); minY=Math.min(minY,r.y);
+    maxX=Math.max(maxX,r.x+r.width); maxY=Math.max(maxY,r.y+r.height);
   }
   if(!isFinite(minX)){ minX=0;minY=0;maxX=800;maxY=600; }
   const PAD=60;
@@ -1053,7 +1055,7 @@ function cssExport(){
     const val=getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     if(val) root+=v+":"+val+";";
   }
-  return root+`
+  return ":root{"+root+"}"+`
 .forma-pre{stroke:var(--borda-2);stroke-width:2}
 .forma-oval,.forma-alvo-ext,.forma-barra{fill:var(--primario)}
 .forma-alvo-int{fill:var(--panel);stroke:var(--primario)}
