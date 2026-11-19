@@ -138,6 +138,75 @@ function dimsPadrao(tipo){
   }
 }
 
+const formasDeCaixa=new Set(["retângulo","retângulo-vaz","elipse","losango","limite","nota"]);
+const tamanhoMinimo={w:56,h:40};
+function limitarTamanho(eixo,valor){
+  return Math.min(5000,Math.max(tamanhoMinimo[eixo],Math.round(valor)));
+}
+let gestoTamanho=null;
+
+function dimensoesNo(no){
+  if(gestoTamanho?.no===no) return gestoTamanho.atual;
+  const base=dimsPadrao(no.tipo);
+  if(!formasDeCaixa.has(formaDoTipo(no.tipo))) return base;
+  for(const eixo of ["w","h"]){
+    if(Number.isFinite(no[eixo])) base[eixo]=limitarTamanho(eixo,no[eixo]);
+  }
+  return base;
+}
+
+// Mede as palavras com a mesma fonte usada na tela e no SVG exportado.
+const medidaRotulo=document.createElement("canvas").getContext("2d");
+medidaRotulo.font='16px "Segoe UI",system-ui,sans-serif';
+const segmentosRotulo=typeof Intl.Segmenter==="function" ? new Intl.Segmenter("pt",{granularity:"grapheme"}) : null;
+function quebrarRotulo(texto,largura){
+  const linhas=[];
+  for(const paragrafo of texto.split(/\r?\n/)){
+    let linha="";
+    for(const palavra of paragrafo.trim().split(/\s+/)){
+      const proposta=linha ? linha+" "+palavra : palavra;
+      if(medidaRotulo.measureText(proposta).width<=largura){linha=proposta;continue;}
+      if(linha) linhas.push(linha);
+      linha=palavra;
+      if(medidaRotulo.measureText(palavra).width<=largura) continue;
+      linha="";
+      const letras=segmentosRotulo ? Array.from(segmentosRotulo.segment(palavra),g=>g.segment) : [...palavra];
+      for(const letra of letras){
+        if(linha && medidaRotulo.measureText(linha+letra).width>largura){linhas.push(linha);linha="";}
+        linha+=letra;
+      }
+    }
+    linhas.push(linha);
+  }
+  return linhas;
+}
+
+const rotulosPorNo=new WeakMap();
+function comporRotulo(no,w,h){
+  const anterior=rotulosPorNo.get(no);
+  if(anterior?.w===w && anterior.h===h && anterior.texto===no.texto) return anterior.layout;
+  const forma=formaDoTipo(no.tipo);
+  const esquerda=forma==="limite" || forma==="nota";
+  let largura=w-24, altura=h-16;
+  // Retângulos inscritos deixam todos os cantos do texto dentro das bordas curvas ou inclinadas.
+  if(forma==="elipse"){largura=(w-12)*0.78;altura=(h-12)*0.60;}
+  if(forma==="losango"){largura=(w-10)*0.54;altura=(h-10)*0.46;}
+  if(esquerda) altura=h-28;
+  let fonte=16,linhas;
+  for(;;){
+    linhas=quebrarRotulo(no.texto||"",largura*16/fonte);
+    const alturaTexto=linhas.length*fonte*1.25;
+    const maior=linhas.reduce((max,l)=>Math.max(max,medidaRotulo.measureText(l).width*fonte/16),1);
+    if(alturaTexto<=altura && maior<=largura) break;
+    fonte*=Math.min(0.91,largura/maior,Math.sqrt(altura/alturaTexto));
+  }
+  const x=esquerda?12:w/2;
+  const y=(esquerda?16:(h-linhas.length*fonte*1.25)/2)+fonte;
+  const layout={linhas,fonte,x,y,anchor:esquerda?"start":"middle"};
+  rotulosPorNo.set(no,{w,h,texto:no.texto,layout});
+  return layout;
+}
+
 /* ---------- Utilitários ---------- */
 function novoId(prefixo){ return (prefixo||"N")+(estado._idSeq++).toString(36)+Math.random().toString(36).slice(2,5); }
 function esc(s){
@@ -658,23 +727,25 @@ function posicionarRotulo(tracado,largura,comTexto,ocupados,condicao=false){
   return melhor;
 }
 
-// Mede o contorno visível em coordenadas locais uma vez para cada tipo de bloco.
-const contornosPorTipo=new Map();
+// Mede o contorno visível em coordenadas locais uma vez considerando o tamanho atual do bloco.
+const contornosPorNo=new WeakMap();
 function medirContorno(no,grupo){
-  if(contornosPorTipo.has(no.tipo)) return;
+  const {w,h}=dimensoesNo(no);
+  const anterior=contornosPorNo.get(no);
+  if(anterior?.w===w && anterior.h===h) return;
   const formas=[grupo.querySelector(".forma-pre")];
   const contornos=Array.from(formas,forma=>{
     const comprimento=forma.getTotalLength();
     const n=Math.max(1,Math.ceil(comprimento/3));
     return Array.from({length:n+1},(_,i)=>forma.getPointAtLength(comprimento*i/n));
   });
-  contornosPorTipo.set(no.tipo,contornos);
+  contornosPorNo.set(no,{w,h,contornos});
 }
 function encaixeNoContorno(no,alvo){
   if(no.tipo==="ator") return bordaDoAtor(ancorasRender.get(no.id),alvo);
   const x=alvo.x-no.x,y=alvo.y-no.y;
   let melhor,menor=Infinity;
-  for(const parte of contornosPorTipo.get(no.tipo)){
+  for(const parte of contornosPorNo.get(no).contornos){
     for(let i=1;i<parte.length;i++){
       const a=parte[i-1],b=parte[i],dx=b.x-a.x,dy=b.y-a.y;
       const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
@@ -683,6 +754,16 @@ function encaixeNoContorno(no,alvo){
     }
   }
   return melhor;
+}
+// Pontas antigas guardavam coordenadas locais relativas ao tamanho padrão.
+function extremidadeNo(no,manual,automatica){
+  if(!manual) return encaixeNoContorno(no,automatica);
+  const {w,h}=dimensoesNo(no);
+  const base=dimsPadrao(no.tipo);
+  return encaixeNoContorno(no,{
+    x:no.x+manual.x*w/(manual.w||base.w),
+    y:no.y+manual.y*h/(manual.h||base.h)
+  });
 }
 function interpolar(a,b,t){
   return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
@@ -813,7 +894,7 @@ function mudarExtremidade(s,g){
   if(atividade && !pontoDisponivel(d,no.id,lado,s)) return;
   s[g.acao]=no.id;
   if(atividade) s[origem?"ancoraDe":"ancoraPara"]=lado;
-  else s[origem?"pontoDe":"pontoPara"]={x:p.x-no.x,y:p.y-no.y};
+  else s[origem?"pontoDe":"pontoPara"]={x:p.x-no.x,y:p.y-no.y,...dimensoesNo(no)};
   salvarLocal();
 }
 alcasLinha.addEventListener("pointerup",ev=>{
@@ -843,7 +924,7 @@ function render(d=diagramaAtual(),paraPDF=false){
   alcasLinha.replaceChildren();
   camadaNos.innerHTML="";
   for(const no of d.no){
-    const {w,h}=dimsPadrao(no.tipo);
+    const {w,h}=dimensoesNo(no);
     const g=document.createElementNS("http://www.w3.org/2000/svg","g");
     const origemAtiva=estado.ferramenta==="conectar"&&estado.origemConexao===no.id;
     g.setAttribute("class","no-grp"+(estado.selecionados.has(no.id)?" selecionado":"")+(origemAtiva?" origem":""));
@@ -852,19 +933,22 @@ function render(d=diagramaAtual(),paraPDF=false){
     g.innerHTML=formaSVG(no.tipo,w,h);
     camadaNos.appendChild(g);
     const forma=formaDoTipo(no.tipo);
-    let tx=w/2, ty=h/2+5, anchor="middle";
-    if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;anchor="middle";}
-    else if(no.tipo==="ator"){tx=w/2;ty=h+16;anchor="middle";} // etiqueta abaixo da figura (não sobre as pernas)
-    else if(forma==="limite"){tx=14;ty=26;anchor="start";}
-    else if(no.tipo==="nota"){tx=14;ty=30;anchor="start";}
+    const caixa=formasDeCaixa.has(forma);
     const texto=document.createElementNS("http://www.w3.org/2000/svg","text");
     texto.setAttribute("class","no-texto");
-    texto.setAttribute("x",tx);texto.setAttribute("y",ty);
-    texto.setAttribute("text-anchor",anchor);
     if(forma!=="oval"&&forma!=="alvo"){
-      (no.texto||"").split("\n").forEach((ln,i)=>{
+      const pos=posicaoTexto(no,w,h);
+      const layout=caixa ? comporRotulo(no,w,h) : {
+        x:pos.tx,y:pos.ty,anchor:"middle",linhas:(no.texto||"").split("\n")
+      };
+      texto.setAttribute("text-anchor",layout.anchor);
+      texto.setAttribute("x",layout.x);
+      texto.setAttribute("y",layout.y);
+      if(caixa) texto.setAttribute("font-size",layout.fonte);
+      layout.linhas.forEach((ln,i)=>{
         const ts=document.createElementNS("http://www.w3.org/2000/svg","tspan");
-        ts.setAttribute("x",tx);ts.setAttribute("dy",i===0?0:15);
+        ts.setAttribute("x",layout.x);
+        ts.setAttribute("y",layout.y+i*(caixa?layout.fonte*1.25:15));
         ts.textContent=ln;
         texto.appendChild(ts);
       });
@@ -895,6 +979,19 @@ function render(d=diagramaAtual(),paraPDF=false){
     }
   }
 
+    if(!paraPDF && caixa && estado.ferramenta==="selecionar" &&
+       estado.selecionados.size===1 && estado.selecionados.has(no.id)){
+      const alca=document.createElementNS(svg.namespaceURI,"rect");
+      alca.setAttribute("class","alca-tamanho");
+      alca.setAttribute("x",w-7); alca.setAttribute("y",h-7);
+      alca.setAttribute("width",14); alca.setAttribute("height",14);
+      alca.setAttribute("rx",3);
+      const titulo=document.createElementNS(svg.namespaceURI,"title");
+      titulo.textContent="Arraste para redimensionar a caixa";
+      alca.appendChild(titulo);
+      alca.onpointerdown=ev=>iniciarTamanho(ev,no);
+      g.appendChild(alca);
+    }
     g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
     // duplo-clique: seleciona e abre a edição inline do texto (trocar o nome
     // diretamente na caixa) — qualquer ferramenta, incluse conectar. O clique
@@ -918,8 +1015,8 @@ function render(d=diagramaAtual(),paraPDF=false){
     if(!par) continue;
     if(d.tipo!=="atividades"){
       const a=nosPorId.get(s.de),b=nosPorId.get(s.para);
-      if(a.tipo!=="ator") par.p1=s.pontoDe ? {x:a.x+s.pontoDe.x,y:a.y+s.pontoDe.y} : encaixeNoContorno(a,par.p1);
-      if(b.tipo!=="ator") par.p2=s.pontoPara ? {x:b.x+s.pontoPara.x,y:b.y+s.pontoPara.y} : encaixeNoContorno(b,par.p2);
+      if(a.tipo!=="ator") par.p1=extremidadeNo(a,s.pontoDe,par.p1);
+      if(b.tipo!=="ator") par.p2=extremidadeNo(b,s.pontoPara,par.p2);
     }
     const gesto=gestoLinha?.id===s.id ? gestoLinha : null;
     if(gesto?.pos && gesto.acao==="de") par.p1=gesto.pos;
@@ -995,6 +1092,7 @@ function render(d=diagramaAtual(),paraPDF=false){
   document.getElementById("btnEditarTexto").hidden=quantidade>1;
   info.textContent=estado.setaSelecionada ? "Seta selecionada" :
     quantidade===1 ? "Bloco selecionado" : quantidade+" blocos selecionados";
+  atualizarCamposTamanho(d);
   atualizarControlesLinha(d);
   atualizarCampoNomeAtor();
   posicionarInline(); // acompanha o bloco se ele se mover enquanto o campo de edição está aberto
@@ -1124,32 +1222,25 @@ function fecharInline(){
 function abrirInline(no){
   const d=diagramaAtual(); if(!d) return;
   if(inlineEdit) fecharInline();
-  const {w,h}=dimsPadrao(no.tipo);
-  const {tx,ty}=posicaoTexto(no,w,h);
-  const p=mundoParaWrap(no.x+tx, no.y+ty);
   const wrap=document.getElementById("canvasWrap");
-  const input=document.createElement("input");
+  const caixa=formasDeCaixa.has(formaDoTipo(no.tipo));
+  const input=document.createElement(caixa?"textarea":"input");
   input.className="editor-inline";
-  input.type="text";
+  input.setAttribute("aria-label","Texto do bloco");
+  if(caixa) input.rows=2;
   input.maxLength=120;
   input.value=no.texto||"";
-  input.style.width=Math.max(120,(no.texto||"").length*8+24)+"px";
-  input.style.left=p.x+"px";
-  input.style.top=(p.y-14)+"px"; // posição inicial; refinada abaixo com a altura real
   input.style.transform="translateX(-50%)";
   wrap.appendChild(input);
-  // centraliza verticalmente o campo exatamente sobre a linha do texto:
-  // o centro do campo fica na baseline do texto (p.y), ajustado pelo padding
-  const ih=input.offsetHeight||30;
-  input.style.top=(p.y - ih/2)+"px";
   inlineEdit={input,no,original:no.texto||""};
+  posicionarInline();
   input.focus({preventScroll:true}); input.select();
   input.addEventListener("input",()=>{
     no.texto=input.value;
     render();
   });
   input.addEventListener("keydown",ev=>{
-    if(ev.key==="Enter"){ ev.preventDefault(); fecharInline(); salvarLocal(); }
+    if(ev.key==="Enter" && !(caixa && ev.shiftKey) && !ev.isComposing){ ev.preventDefault(); fecharInline(); salvarLocal(); }
     else if(ev.key==="Escape"){ ev.preventDefault(); no.texto=inlineEdit.original; fecharInline(); }
   });
   input.addEventListener("blur",()=>{ fecharInline(); salvarLocal(); });
@@ -1162,9 +1253,12 @@ function posicionarInline(){
   if(!inlineEdit) return;
   const d=diagramaAtual(); if(!d) return;
   const no=d.no.find(n=>n.id===inlineEdit.no.id); if(!no) return;
-  const {w,h}=dimsPadrao(no.tipo);
-  const {tx,ty}=posicaoTexto(no,w,h);
+  const {w,h}=dimensoesNo(no);
+  const caixa=formasDeCaixa.has(formaDoTipo(no.tipo));
+  const {tx,ty}=caixa ? {tx:w/2,ty:h/2} : posicaoTexto(no,w,h);
   const p=mundoParaWrap(no.x+tx, no.y+ty);
+  const largura=caixa ? w*estado.zoom-8 : Math.max(120,(no.texto||"").length*8+24);
+  inlineEdit.input.style.width=Math.min(svg.clientWidth,Math.max(50,largura))+"px";
   // centraliza o campo (centro na baseline do texto), como na abertura
   const ih=inlineEdit.input.offsetHeight||30;
   inlineEdit.input.style.left=p.x+"px";
@@ -1214,6 +1308,59 @@ function adicionarBloco(tipo,x,y){
   render(); salvarLocal();
   return no;
 }
+
+const camposTamanho=document.getElementById("camposTamanho");
+function caixaSelecionada(d){
+  if(!d || estado.selecionados.size!==1 || estado.ferramenta!=="selecionar") return;
+  return d.no.find(n=>estado.selecionados.has(n.id) && formasDeCaixa.has(formaDoTipo(n.tipo)));
+}
+function atualizarCamposTamanho(d){
+  const no=caixaSelecionada(d);
+  camposTamanho.hidden=!no;
+  if(no){
+    const dim=dimensoesNo(no);
+    for(const campo of camposTamanho.querySelectorAll("input")) campo.value=dim[campo.name];
+  }
+}
+camposTamanho.addEventListener("change",ev=>{
+  const d=diagramaAtual(),no=caixaSelecionada(d),campo=ev.target;
+  if(!no || !Object.hasOwn(tamanhoMinimo,campo.name)) return;
+  if(Number.isFinite(campo.valueAsNumber)){
+    no[campo.name]=limitarTamanho(campo.name,campo.valueAsNumber);
+    salvarLocal();
+  }
+  render();
+});
+function iniciarTamanho(ev,no){
+  ev.stopPropagation();
+  if(!ev.isPrimary || ev.button!==0 || gestoTamanho) return;
+  ev.preventDefault();
+  const tamanho=dimensoesNo(no);
+  gestoTamanho={no,id:ev.pointerId,inicio:posMundo(ev.clientX,ev.clientY),tamanho,atual:tamanho};
+  camadaNos.setPointerCapture(ev.pointerId);
+}
+function moverTamanho(ev){
+  const g=gestoTamanho;
+  if(!g || ev.pointerId!==g.id) return;
+  const p=posMundo(ev.clientX,ev.clientY);
+  g.atual={w:limitarTamanho("w",g.tamanho.w+p.x-g.inicio.x),
+           h:limitarTamanho("h",g.tamanho.h+p.y-g.inicio.y)};
+}
+camadaNos.addEventListener("pointermove",ev=>{
+  if(gestoTamanho?.id!==ev.pointerId) return;
+  moverTamanho(ev); render();
+});
+function terminarTamanho(ev){
+  const g=gestoTamanho;
+  if(!g || ev.pointerId!==g.id) return;
+  if(ev.type==="pointerup"){
+    moverTamanho(ev);
+    if(g.atual.w!==g.tamanho.w || g.atual.h!==g.tamanho.h){Object.assign(g.no,g.atual);salvarLocal();}
+  }
+  gestoTamanho=null; render();
+}
+for(const evento of ["pointerup","pointercancel","lostpointercapture"])
+  camadaNos.addEventListener(evento,terminarTamanho);
 
 /* ---------- Arrastar blocos e pan ---------- */
 svg.addEventListener("pointerdown",ev=>{
@@ -1315,7 +1462,7 @@ document.addEventListener("pointerup",fimArrasto);
 document.addEventListener("pointercancel",fimArrasto);
 svg.addEventListener("click",ev=>{
   if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
-  if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")) return;
+  if(ev.target===camadaNos || ev.target.closest(".no-grp,.seta-grp")) return;
   if(estado.ferramenta==="conectar"&&estado.origemConexao){ estado.origemConexao=null; render(); }
   else{ estado.selecionados.clear(); estado.setaSelecionada=null; render(); }
 });
@@ -1362,7 +1509,7 @@ function bboxDoCanvas(d=diagramaAtual()){
   if(!d) return {x:0,y:0,w:800,h:600};
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const no of d.no){
-    const dim=dimsPadrao(no.tipo);
+    const dim=dimensoesNo(no);
     minX=Math.min(minX,no.x); minY=Math.min(minY,no.y);
     maxX=Math.max(maxX,no.x+dim.w); maxY=Math.max(maxY,no.y+dim.h);
     if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
@@ -1427,7 +1574,7 @@ function construirSVGExport(formato,d=diagramaAtual()){
   clone.querySelector("#gradePlano")?.remove();
   clone.querySelector("#alcasLinha")?.remove();
   const contNos=clone.querySelector("#camadaNos");
-  if(contNos) contNos.querySelectorAll(".ancora,.hit-no").forEach(n=>n.remove());
+  if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alca-tamanho").forEach(n=>n.remove());
   const contSetas=clone.querySelector("#camadaConexoes");
   if(contSetas) contSetas.querySelectorAll(".conector-hit").forEach(n=>n.remove());
   clone.setAttribute("viewBox",`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
@@ -1575,7 +1722,7 @@ function colarSelecao(d,copia){
 }
 function atalhoEditor(ev){
   const d=diagramaAtual();
-  if(!d || ev.defaultPrevented || ev.isComposing || ev.altKey || ev.target.isContentEditable ||
+  if(!d || gestoTamanho || ev.defaultPrevented || ev.isComposing || ev.altKey || ev.target.isContentEditable ||
      ev.target.closest?.("input,textarea,select,dialog")) return;
   const tecla=ev.key.toLowerCase();
   if(ev.ctrlKey || ev.metaKey){
@@ -1613,7 +1760,7 @@ function init(){
   window.addEventListener("keydown",atalhoEditor);
   document.addEventListener("focusout",()=>{if(historico) historico.grupo=null;});
   svg.addEventListener("pointerdown",()=>{
-    if(document.activeElement?.matches("#campoCondicao,#campoNomeAtor,#tituloDiagrama,#tipoLinha,#grupoConexoes")) svg.focus({preventScroll:true});
+    if(document.activeElement?.matches("#camposTamanho input,#campoCondicao,#campoNomeAtor,#tituloDiagrama,#tipoLinha,#grupoConexoes")) svg.focus({preventScroll:true});
   },true);
 }
 init();
