@@ -84,12 +84,12 @@ function formaDoTipo(tipo){
 function formaSVG(tipo,w,h){
   switch(formaDoTipo(tipo)){
     case "oval":
-      return `<circle class="forma-pre forma-oval" cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)/2-2}"/>
-              <text class="no-texto" x="${w/2}" y="${h/2+5}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Início</text>`;
-    case "alvo":
-      return `<circle class="forma-pre forma-alvo-ext" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-3}"/>
-              <circle class="forma-pre forma-alvo-int" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-11}" stroke-width="3"/>
-              <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="12" font-weight="700">Fim</text>`;
+      return `<circle class="forma-pre forma-oval" cx="${w/2}" cy="${h/2}" r="${h/2-recuoCircular.oval}"/>`;
+    case "alvo":{
+      const raio=h/2-recuoCircular.alvo;
+      return `<circle class="forma-pre forma-alvo-ext" cx="${w/2}" cy="${h/2}" r="${raio}"/>
+              <circle class="forma-pre forma-alvo-int" cx="${w/2}" cy="${h/2}" r="${raio-8}" stroke-width="3"/>`;
+    }
     case "barra":
       return `<rect class="forma-pre forma-barra" x="2" y="4" width="${w-4}" height="${Math.min(18,h-8)}" rx="4" stroke-width="2"/>
               <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="11.5" font-weight="700">fork / join</text>`;
@@ -138,8 +138,23 @@ function dimsPadrao(tipo){
   }
 }
 
-const formasDeCaixa=new Set(["retângulo","retângulo-vaz","elipse","losango","limite","nota"]);
-const tamanhoMinimo={w:56,h:40};
+const formasDeCaixa=new Set(["retângulo","retângulo-vaz","elipse","losango","limite","nota","oval","alvo"]);
+const recuoCircular={oval:2,alvo:3};
+const tamanhoMinimo={w:56,h:40,diametro:40};
+
+// Mantém a margem horizontal usada nos pontos de início dos diagramas existentes.
+function dimensoesCirculo(tipo,diametro){
+  const base=dimsPadrao(tipo);
+  const h=limitarTamanho("diametro",diametro)+2*recuoCircular[formaDoTipo(tipo)];
+  return {w:h+base.w-base.h,h};
+}
+function textoDoBloco(no){
+  if(no.texto) return no.texto;
+  const forma=formaDoTipo(no.tipo);
+  if(forma==="oval") return "Início";
+  if(forma==="alvo") return "Fim";
+  return "";
+}
 function limitarTamanho(eixo,valor){
   return Math.min(5000,Math.max(tamanhoMinimo[eixo],Math.round(valor)));
 }
@@ -148,7 +163,9 @@ let gestoTamanho=null;
 function dimensoesNo(no){
   if(gestoTamanho?.no===no) return gestoTamanho.atual;
   const base=dimsPadrao(no.tipo);
-  if(!formasDeCaixa.has(formaDoTipo(no.tipo))) return base;
+  const forma=formaDoTipo(no.tipo);
+  if(recuoCircular[forma]) return Number.isFinite(no.diametro) ? dimensoesCirculo(no.tipo,no.diametro) : base;
+  if(!formasDeCaixa.has(forma)) return base;
   for(const eixo of ["w","h"]){
     if(Number.isFinite(no[eixo])) base[eixo]=limitarTamanho(eixo,no[eixo]);
   }
@@ -190,11 +207,16 @@ function comporRotulo(no,w,h){
   let largura=w-24, altura=h-16;
   // Retângulos inscritos deixam todos os cantos do texto dentro das bordas curvas ou inclinadas.
   if(forma==="elipse"){largura=(w-12)*0.78;altura=(h-12)*0.60;}
+  if(recuoCircular[forma]){
+    // No fim, o rótulo fica dentro do círculo interno, com folga para seu traço.
+    const livre=h-2*recuoCircular[forma]-(forma==="alvo"?20:4);
+    largura=livre*0.78; altura=livre*0.60;
+  }
   if(forma==="losango"){largura=(w-10)*0.54;altura=(h-10)*0.46;}
   if(esquerda) altura=h-28;
   let fonte=16,linhas;
   for(;;){
-    linhas=quebrarRotulo(no.texto||"",largura*16/fonte);
+    linhas=quebrarRotulo(textoDoBloco(no),largura*16/fonte);
     const alturaTexto=linhas.length*fonte*1.25;
     const maior=linhas.reduce((max,l)=>Math.max(max,medidaRotulo.measureText(l).width*fonte/16),1);
     if(alturaTexto<=altura && maior<=largura) break;
@@ -760,6 +782,11 @@ function extremidadeNo(no,manual,automatica){
   if(!manual) return encaixeNoContorno(no,automatica);
   const {w,h}=dimensoesNo(no);
   const base=dimsPadrao(no.tipo);
+  if(recuoCircular[formaDoTipo(no.tipo)]){
+    const dx=manual.x-(manual.w||base.w)/2, dy=manual.y-(manual.h||base.h)/2;
+    const escala=(h/2-recuoCircular[formaDoTipo(no.tipo)])/(Math.hypot(dx,dy)||1);
+    return {x:no.x+w/2+dx*escala,y:no.y+h/2+dy*escala};
+  }
   return encaixeNoContorno(no,{
     x:no.x+manual.x*w/(manual.w||base.w),
     y:no.y+manual.y*h/(manual.h||base.h)
@@ -934,26 +961,25 @@ function render(d=diagramaAtual(),paraPDF=false){
     camadaNos.appendChild(g);
     const forma=formaDoTipo(no.tipo);
     const caixa=formasDeCaixa.has(forma);
+    const circular=Boolean(recuoCircular[forma]);
     const texto=document.createElementNS("http://www.w3.org/2000/svg","text");
     texto.setAttribute("class","no-texto");
-    if(forma!=="oval"&&forma!=="alvo"){
-      const pos=posicaoTexto(no,w,h);
-      const layout=caixa ? comporRotulo(no,w,h) : {
-        x:pos.tx,y:pos.ty,anchor:"middle",linhas:(no.texto||"").split("\n")
-      };
-      texto.setAttribute("text-anchor",layout.anchor);
-      texto.setAttribute("x",layout.x);
-      texto.setAttribute("y",layout.y);
-      if(caixa) texto.setAttribute("font-size",layout.fonte);
-      layout.linhas.forEach((ln,i)=>{
-        const ts=document.createElementNS("http://www.w3.org/2000/svg","tspan");
-        ts.setAttribute("x",layout.x);
-        ts.setAttribute("y",layout.y+i*(caixa?layout.fonte*1.25:15));
-        ts.textContent=ln;
-        texto.appendChild(ts);
-      });
-      g.appendChild(texto);
-    }
+    const pos=posicaoTexto(no,w,h);
+    const layout=caixa ? comporRotulo(no,w,h) : {
+      x:pos.tx,y:pos.ty,anchor:"middle",linhas:(no.texto||"").split("\n")
+    };
+    texto.setAttribute("text-anchor",layout.anchor);
+    texto.setAttribute("x",layout.x);
+    texto.setAttribute("y",layout.y);
+    if(caixa) texto.setAttribute("font-size",layout.fonte);
+    layout.linhas.forEach((ln,i)=>{
+      const ts=document.createElementNS("http://www.w3.org/2000/svg","tspan");
+      ts.setAttribute("x",layout.x);
+      ts.setAttribute("y",layout.y+i*(caixa?layout.fonte*1.25:15));
+      ts.textContent=ln;
+      texto.appendChild(ts);
+    });
+    g.appendChild(texto);
     const ator=no.tipo==="ator";
     const borda=ator ? areaDoAtor(w,h,texto) : g.querySelector(".forma-pre").getBBox();
     const aa=ancoras(no,borda);
@@ -963,8 +989,8 @@ function render(d=diagramaAtual(),paraPDF=false){
   // arrastar em qualquer ponto do bloco, inclusive em áreas vazias da figura do ator
   const hit=document.createElementNS("http://www.w3.org/2000/svg","rect");
   hit.setAttribute("class",ator?"hit-no area-ator":"hit-no");
-  hit.setAttribute("x",ator?borda.x:0); hit.setAttribute("y",0);
-  hit.setAttribute("width",ator?borda.width:w); hit.setAttribute("height",ator?borda.height:h);
+  hit.setAttribute("x",ator||circular?borda.x:0); hit.setAttribute("y",0);
+  hit.setAttribute("width",ator||circular?borda.width:w); hit.setAttribute("height",ator?borda.height:h);
   hit.setAttribute("rx",ator?0:4);
   g.appendChild(hit);
   if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
@@ -983,11 +1009,13 @@ function render(d=diagramaAtual(),paraPDF=false){
        estado.selecionados.size===1 && estado.selecionados.has(no.id)){
       const alca=document.createElementNS(svg.namespaceURI,"rect");
       alca.setAttribute("class","alca-tamanho");
-      alca.setAttribute("x",w-7); alca.setAttribute("y",h-7);
+      const direita=circular?borda.x+borda.width:w;
+      const inferior=circular?borda.y+borda.height:h;
+      alca.setAttribute("x",direita-7); alca.setAttribute("y",inferior-7);
       alca.setAttribute("width",14); alca.setAttribute("height",14);
       alca.setAttribute("rx",3);
       const titulo=document.createElementNS(svg.namespaceURI,"title");
-      titulo.textContent="Arraste para redimensionar a caixa";
+      titulo.textContent="Arraste para redimensionar o bloco";
       alca.appendChild(titulo);
       alca.onpointerdown=ev=>iniciarTamanho(ev,no);
       g.appendChild(alca);
@@ -1206,7 +1234,7 @@ function mundoParaWrap(x,y){
 function posicaoTexto(no,w,h){
   const forma=formaDoTipo(no.tipo);
   let tx=w/2, ty=h/2+5;
-  if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;}
+  if(forma==="barra"){tx=w/2;ty=h+18;}
   else if(no.tipo==="ator"){tx=w/2;ty=h+16;}
   else if(forma==="limite"){tx=14;ty=26;}
   else if(forma==="nota"){tx=14;ty=30;}
@@ -1229,7 +1257,7 @@ function abrirInline(no){
   input.setAttribute("aria-label","Texto do bloco");
   if(caixa) input.rows=2;
   input.maxLength=120;
-  input.value=no.texto||"";
+  input.value=textoDoBloco(no);
   input.style.transform="translateX(-50%)";
   wrap.appendChild(input);
   inlineEdit={input,no,original:no.texto||""};
@@ -1319,7 +1347,12 @@ function atualizarCamposTamanho(d){
   camposTamanho.hidden=!no;
   if(no){
     const dim=dimensoesNo(no);
-    for(const campo of camposTamanho.querySelectorAll("input")) campo.value=dim[campo.name];
+    const recuo=recuoCircular[formaDoTipo(no.tipo)];
+    for(const campo of camposTamanho.querySelectorAll("input")){
+      const diametro=campo.name==="diametro";
+      campo.parentElement.hidden=diametro!==Boolean(recuo);
+      if(!campo.parentElement.hidden) campo.value=diametro?dim.h-2*recuo:dim[campo.name];
+    }
   }
 }
 camposTamanho.addEventListener("change",ev=>{
@@ -1343,8 +1376,14 @@ function moverTamanho(ev){
   const g=gestoTamanho;
   if(!g || ev.pointerId!==g.id) return;
   const p=posMundo(ev.clientX,ev.clientY);
-  g.atual={w:limitarTamanho("w",g.tamanho.w+p.x-g.inicio.x),
-           h:limitarTamanho("h",g.tamanho.h+p.y-g.inicio.y)};
+  const dx=p.x-g.inicio.x,dy=p.y-g.inicio.y;
+  const recuo=recuoCircular[formaDoTipo(g.no.tipo)];
+  if(recuo){
+    const delta=(dx+dy)/2;
+    g.atual=dimensoesCirculo(g.no.tipo,g.tamanho.h-2*recuo+delta);
+  }else{
+    g.atual={w:limitarTamanho("w",g.tamanho.w+dx),h:limitarTamanho("h",g.tamanho.h+dy)};
+  }
 }
 camadaNos.addEventListener("pointermove",ev=>{
   if(gestoTamanho?.id!==ev.pointerId) return;
@@ -1355,7 +1394,12 @@ function terminarTamanho(ev){
   if(!g || ev.pointerId!==g.id) return;
   if(ev.type==="pointerup"){
     moverTamanho(ev);
-    if(g.atual.w!==g.tamanho.w || g.atual.h!==g.tamanho.h){Object.assign(g.no,g.atual);salvarLocal();}
+    if(g.atual.w!==g.tamanho.w || g.atual.h!==g.tamanho.h){
+      const recuo=recuoCircular[formaDoTipo(g.no.tipo)];
+      if(recuo) g.no.diametro=g.atual.h-2*recuo;
+      else Object.assign(g.no,g.atual);
+      salvarLocal();
+    }
   }
   gestoTamanho=null; render();
 }
@@ -1512,7 +1556,7 @@ function bboxDoCanvas(d=diagramaAtual()){
     const dim=dimensoesNo(no);
     minX=Math.min(minX,no.x); minY=Math.min(minY,no.y);
     maxX=Math.max(maxX,no.x+dim.w); maxY=Math.max(maxY,no.y+dim.h);
-    if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
+    if(no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
     if(no.tipo==="ator"){
       const aa=ancorasRender.get(no.id);
       minX=Math.min(minX,aa.esquerda.x); maxX=Math.max(maxX,aa.direita.x);
@@ -1548,6 +1592,7 @@ function cssExport(formato){
 .forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:${cor("--panel")}}
 .forma-ator{fill:none;stroke:${cor("--texto-2")}}
 .no-texto{fill:${cor("--texto")};font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
+.forma-oval + .no-texto{fill:${cor("--panel")}}
 .conector{fill:none;stroke:${cor("--texto-2")};stroke-width:1.8}
 .conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:stroke;cursor:pointer}
 .conector-caixa{fill:${cor("--panel")};stroke:${cor("--borda")}}
@@ -1561,7 +1606,6 @@ function cssExport(formato){
 .conector-marca-pequena{font-size:8.5px;font-weight:700;fill:${cor("--texto-2")};font-family:inherit}
 .conector-marca-pequena.include{fill:${cor("--sucesso")}}
 .conector-marca-pequena.extend{fill:${cor("--aviso")}}${formato==="png" ? `
-.forma-oval + .no-texto{fill:white}
 .conector-caixa{fill:white}
 .conector-marca,.conector-marca-pequena{font-family:"Segoe UI",system-ui,sans-serif}
 .conector-marca-pequena{font-size:10px}` : ""}

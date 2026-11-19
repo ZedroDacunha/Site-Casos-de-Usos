@@ -233,6 +233,7 @@ textarea.editor-inline{resize:none;min-width:0;box-sizing:border-box}
 /* cores das formas por classe (CSS resolve variáveis; atributos SVG não resolvem var()) */
 .forma-pre{stroke:var(--borda-2);stroke-width:2}
 .forma-oval,.forma-alvo-ext,.forma-barra{fill:var(--primario)}
+.forma-oval + .no-texto{fill:var(--panel)}
 .forma-alvo-int{fill:var(--panel);stroke:var(--primario)}
 .forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:var(--panel)}
 .forma-ator{fill:none;stroke:var(--texto-2)}
