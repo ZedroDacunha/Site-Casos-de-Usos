@@ -953,8 +953,8 @@ function render(d=diagramaAtual(),paraPDF=false){
   for(const no of d.no){
     const {w,h}=dimensoesNo(no);
     const g=document.createElementNS("http://www.w3.org/2000/svg","g");
-    const origemAtiva=estado.ferramenta==="conectar"&&estado.origemConexao===no.id;
-    g.setAttribute("class","no-grp"+(estado.selecionados.has(no.id)?" selecionado":"")+(origemAtiva?" origem":""));
+    const origemAtiva=!paraPDF&&estado.ferramenta==="conectar"&&estado.origemConexao===no.id;
+    g.setAttribute("class","no-grp"+(!paraPDF&&estado.selecionados.has(no.id)?" selecionado":"")+(origemAtiva?" origem":""));
     g.setAttribute("transform",`translate(${no.x},${no.y})`);
     g.setAttribute("data-id",no.id);
     g.innerHTML=formaSVG(no.tipo,w,h);
@@ -1052,7 +1052,7 @@ function render(d=diagramaAtual(),paraPDF=false){
     const dobras=gesto?.dobras || s.dobras || [];
     const tracado=tracadoLinha(par.p1,par.p2,dobras);
     const dPath=tracado.caminho;
-    const sel=estado.setaSelecionada===s.id;
+    const sel=!paraPDF&&estado.setaSelecionada===s.id;
     if(sel && estado.ferramenta==="selecionar") mostrarAlcas(par,tracado,dobras);
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
