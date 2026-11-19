@@ -1,45 +1,59 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="33">
+<html lang="pt-BR" data-theme="light" data-version="34">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=33">
+<link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
 
 <!-- ============ Cabeçalho ============ -->
 <header class="topo">
-  <div class="logo"><span class="icone">🧩</span><span>Editor de Diagramas</span></div>
+  <div class="logo"><span class="icone"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h8v12h6"/><rect x="2" y="3" width="6" height="6" rx="1.5"/><rect x="16" y="15" width="6" height="6" rx="1.5"/></svg></span><span>Editor de Diagramas</span></div>
   <div class="topo-espaço"></div>
   <div class="topo-acoes">
-    <button class="btn btn-secundario" id="btnTema" type="button" title="Alternar tema claro/escuro">🌓</button>
+    <button class="btn btn-secundario" id="btnTema" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro ou escuro"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/></svg></button>
   </div>
 </header>
 
 <!-- ============ Tela inicial: lista de diagramas ============ -->
 <div class="tela tela-inicio ativa" id="telaInicio">
   <div class="inicio-inner">
-    <div class="inicio-cabeca">
-      <h1>Editor de Diagramas</h1>
-      <p>Monte e edite seus próprios diagramas manualmente. Crie um novo diagrama e use as ferramentas de blocos e setas para desenhar o seu.</p>
-    </div>
-    <div class="inicio-linha">
-      <div class="botoes-linha">
-        <button class="btn btn-primario" id="btnNovoDiagrama" type="button">＋ Novo diagrama</button>
+    <section aria-labelledby="tituloCriar">
+      <h1 id="tituloCriar">Criar um diagrama</h1>
+      <div class="modelos">
+        <button class="modelo modelo-casos" type="button" data-criar="casos">
+          <span class="modelo-arte"><svg viewBox="0 0 250 110" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M80 55 158 31M80 58l78 25"/><g class="papel"><ellipse cx="182" cy="27" rx="30" ry="13"/><ellipse cx="182" cy="86" rx="30" ry="13"/></g><circle cx="64" cy="35" r="8" class="papel"/><path d="M64 43v24m-15-13h30m-15 13L53 85m11-18 11 18"/></svg></span>
+          <span class="modelo-corpo"><strong>Casos de uso</strong><span>Relacione atores e funcionalidades.</span></span>
+          <span class="modelo-seta"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+        </button>
+        <button class="modelo modelo-atividades" type="button" data-criar="atividades">
+          <span class="modelo-arte"><svg viewBox="0 0 250 110" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M40 54h42m40 0h18V27h27m-27 27v28h27"/><circle cx="34" cy="54" r="7" fill="currentColor"/><path class="papel" d="m102 34 22 20-22 20-22-20Z"/><g class="papel"><rect x="168" y="15" width="50" height="23" rx="5"/><rect x="168" y="71" width="50" height="23" rx="5"/></g></svg></span>
+          <span class="modelo-corpo"><strong>Atividades</strong><span>Desenhe ações, decisões e fluxos.</span></span>
+          <span class="modelo-seta"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+        </button>
+        <button class="modelo modelo-roteiro" type="button" data-criar="roteiro">
+          <span class="modelo-arte"><svg viewBox="0 0 250 110" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M88 43h31v28h34m-6-5 6 5-6 5"/><g class="papel"><rect x="25" y="18" width="64" height="47" rx="5"/><rect x="155" y="49" width="64" height="47" rx="5"/></g><path d="M25 31h64m66 31h64m-184-8h25m104 28h23"/></svg></span>
+          <span class="modelo-corpo"><strong>Roteiro</strong><span>Conecte telas e etapas de navegação.</span></span>
+          <span class="modelo-seta"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+        </button>
       </div>
-    </div>
-    <div class="inicio-bar" id="barraIO">
-      <span class="inicio-bar-rotulo">Importar e exportar</span>
-      <div class="inicio-bar-acoes">
-        <button class="btn btn-secundario" id="btnExportarJSON" type="button" title="Exportar todos os diagramas em JSON">💾 Exportar JSON</button>
-        <button class="btn btn-secundario" id="btnImportarJSON" type="button" title="Importar diagramas de um JSON">📥 Importar JSON</button>
-        <input type="file" id="arquivoJSON" accept="application/json,.json" hidden>
+    </section>
+    <section aria-labelledby="tituloColecao" class="colecao">
+      <div class="colecao-cabeca">
+        <h2 id="tituloColecao">Meus diagramas</h2>
+        <div class="arquivos">
+          <button class="fbtn" id="btnImportarJSON" type="button">Importar JSON</button>
+          <button class="fbtn" id="btnExportarJSON" type="button" title="Exportar todos os diagramas em um arquivo JSON">Exportar JSON</button>
+          <input type="file" id="arquivoJSON" accept="application/json,.json" hidden>
+        </div>
       </div>
-    </div>
-    <div class="lista-diagramas" id="listaDiagramas"></div>
-    <div class="vazio" id="vazioDiagramas" style="margin-top:14px">Nenhum diagrama ainda — clique em <b>“＋ Novo diagrama”</b> para começar.</div>
+      <label class="busca" id="grupoBusca" hidden><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="buscaDiagramas" type="search" placeholder="Buscar diagrama pelo nome" aria-label="Buscar diagrama pelo nome"></label>
+      <div class="lista-diagramas" id="listaDiagramas"></div>
+      <div class="vazio" id="vazioDiagramas" role="status"></div>
+    </section>
   </div>
 </div>
 
@@ -47,9 +61,9 @@
 <div class="tela" id="telaEditor">
   <div class="editor-bar">
     <button class="btn btn-secundario" id="btnVoltar" type="button" title="Voltar à tela inicial">← Diagramas</button>
-    <input class="titulo" id="tituloDiagrama" type="text" maxlength="80" placeholder="Nome do diagrama" aria-label="Nome do diagrama">
+    <input class="titulo" id="tituloDiagrama" title="Renomear diagrama" type="text" maxlength="80" placeholder="Nome do diagrama" aria-label="Nome do diagrama">
     <details class="menu-diagrama" id="menuDiagrama">
-      <summary class="fbtn">Opções</summary>
+      <summary class="fbtn">Arquivo</summary>
       <div class="menu-acoes">
         <button id="btnExportarSVG" type="button">Exportar SVG</button>
         <button id="btnExportarPNG" type="button">Exportar PNG</button>
@@ -57,8 +71,8 @@
       </div>
     </details>
   </div>
-  <div class="layout">
-    <aside class="paleta" aria-labelledby="paletaTitulo">
+  <div class="layout" id="layoutEditor">
+    <aside id="painelBlocos" class="paleta" aria-labelledby="paletaTitulo">
       <h2 class="paleta-titulo" id="paletaTitulo">Blocos</h2>
       <div class="paleta-lista" id="paletaLista"></div>
       <details class="paleta-acoes">
@@ -71,9 +85,10 @@
     </aside>
     <main class="editor-area">
       <div class="ferramentas">
+        <button class="fbtn alternar-paleta" id="alternarPaleta" aria-controls="painelBlocos" aria-expanded="true" type="button"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg> Blocos</button>
         <div class="ferr-grupo" role="group" aria-label="Modo de edição">
-          <button class="fbtn ativo" id="ferrSelecionar" type="button" title="Selecionar e mover (T)" aria-pressed="true">Selecionar</button>
-          <button class="fbtn" id="ferrConectar" type="button" title="Conectar blocos (C)" aria-pressed="false">Conectar</button>
+          <button class="fbtn ativo" id="ferrSelecionar" type="button" title="Selecionar e mover (T)" aria-pressed="true"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 3 14 10-7 1-4 6Z"/></svg> Selecionar</button>
+          <button class="fbtn" id="ferrConectar" type="button" title="Conectar blocos (C)" aria-pressed="false"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="17" r="2.5"/><circle cx="19" cy="6" r="2.5"/><path d="M7.5 17h3v-6h4V6h2"/></svg> Conectar</button>
         </div>
         <label id="opcoesConexao" hidden>Tipo de conexão
           <select id="grupoConexoes"></select>
@@ -104,7 +119,7 @@
           <g id="camadaNos"></g>
           <g id="alcasLinha"></g>
         </svg>
-        <div class="dica-canvas" id="dicaCanvas">Clique nos blocos da paleta para começar — ou arraste um para o canvas</div>
+        <div class="dica-canvas" id="dicaCanvas">Escolha um bloco na paleta para começar.</div>
       </div>
       <div class="selecao" id="acoesSelecao" role="group" aria-label="Seleção" hidden>
         <span id="infoSelecionado"></span>
@@ -122,7 +137,7 @@
 </div>
 
 <!-- ============ Modal: novo diagrama ============ -->
-<div class="modal-fundo" id="modalFundo">
+<dialog class="modal-fundo" id="modalFundo" aria-labelledby="modalTitulo">
   <div class="modal">
     <div class="modal-cabecalho">
       <h3 id="modalTitulo">Novo diagrama</h3>
@@ -130,7 +145,7 @@
     </div>
     <div class="modal-corpo">
       <label for="modalNome">Nome do diagrama</label>
-      <input id="modalNome" type="text" maxlength="80" placeholder="Ex.: Cadastro de Usuário">
+      <input id="modalNome" type="text" required maxlength="80" placeholder="Ex.: Cadastro de Usuário">
       <label for="modalTipo">Tipo de diagrama</label>
       <select id="modalTipo">
         <option value="casos">Diagrama de Casos de Uso</option>
@@ -143,10 +158,10 @@
       <button class="btn btn-primario" id="modalConfirmar" type="button">Criar diagrama</button>
     </div>
   </div>
-</div>
+</dialog>
 
-<div class="toast" id="toast"></div>
+<div role="status" class="toast" id="toast"></div>
 
-<script src="script.js?v=33"></script>
+<script src="script.js?v=34"></script>
 </body>
 </html>
