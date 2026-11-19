@@ -504,7 +504,11 @@ function calcularFanout(d,pontosPorNo){
       ladosDoNo.set(lado,{eixo,min,max,pontas:[]});
     }
     ponto[normal]+=4*sinal;
-    ladosDoNo.get(lado).pontas.push({ponto,alvo:alvo[eixo],id:seta.id});
+    // Ordena as setas de ida e volta pela perpendicular ao sentido da viagem.
+    // Na borda vertical distribuímos em y; na horizontal, em x (sinal oposto).
+    const sentido=id===seta.de ? sinal : -sinal;
+    const faixa=normal==="x" ? sentido : -sentido;
+    ladosDoNo.get(lado).pontas.push({ponto,alvo:alvo[eixo],faixa,id:seta.id});
   }
   for(const s of d.seta){
     const aa=pontosPorNo.get(s.de), bb=pontosPorNo.get(s.para);
@@ -517,7 +521,7 @@ function calcularFanout(d,pontosPorNo){
   for(const grupos of lados.values()){
     for(const {eixo,min,max,pontas} of grupos.values()){
       if(pontas.length<2) continue;
-      pontas.sort((a,b)=>a.ponto[eixo]-b.ponto[eixo] || a.alvo-b.alvo || String(a.id).localeCompare(String(b.id)));
+      pontas.sort((a,b)=>a.ponto[eixo]-b.ponto[eixo] || a.alvo-b.alvo || a.faixa-b.faixa || String(a.id).localeCompare(String(b.id)));
       const margem=Math.min(6,(max-min)/4);
       const passo=Math.min(22,(max-min-2*margem)/(pontas.length-1));
       let anterior=min+margem-passo;
