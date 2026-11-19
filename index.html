@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="34">
+<html lang="pt-BR" data-theme="light" data-version="35">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=34">
+<link rel="stylesheet" href="style.css?v=35">
 </head>
 <body>
 
@@ -53,6 +53,15 @@
       <label class="busca" id="grupoBusca" hidden><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="buscaDiagramas" type="search" placeholder="Buscar diagrama pelo nome" aria-label="Buscar diagrama pelo nome"></label>
       <div class="lista-diagramas" id="listaDiagramas"></div>
       <div class="vazio" id="vazioDiagramas" role="status"></div>
+    </section>
+    <section aria-labelledby="tituloProjetos" class="colecao">
+      <div class="colecao-cabeca">
+        <h2 id="tituloProjetos">Projetos</h2>
+        <button class="btn btn-primario" id="novoProjeto" type="button">＋ Criar projeto</button>
+      </div>
+      <div class="lista-diagramas" id="listaProjetos"></div>
+      <p class="vazio" id="semProjetos">Reúna os diagramas de um trabalho e exporte tudo em um único PDF.</p>
+      <p id="progressoPDF" role="status" hidden></p>
     </section>
   </div>
 </div>
@@ -160,8 +169,30 @@
   </div>
 </dialog>
 
+<dialog class="modal-fundo" id="dialogoProjeto" aria-labelledby="tituloProjeto">
+  <form id="formProjeto" class="modal">
+    <div class="modal-cabecalho"><h3 id="tituloProjeto">Criar projeto</h3></div>
+    <div class="modal-corpo">
+      <label for="nomeProjeto">Nome do projeto</label>
+      <input id="nomeProjeto" maxlength="100" required placeholder="Ex.: Sistema de biblioteca">
+      <label for="adicionarAoProjeto">Adicionar diagrama</label>
+      <div class="incluir-diagrama">
+        <select id="adicionarAoProjeto"></select>
+        <button id="incluirDiagrama" class="fbtn" type="button">Adicionar</button>
+      </div>
+      <h4>Ordem das páginas</h4>
+      <ol id="paginasProjeto"></ol>
+      <p id="projetoVazio">Você pode salvar o projeto vazio e adicionar os diagramas depois.</p>
+    </div>
+    <div class="modal-rodape">
+      <button id="cancelarProjeto" type="button" class="btn btn-secundario">Cancelar</button>
+      <button type="submit" class="btn btn-primario">Salvar projeto</button>
+    </div>
+  </form>
+</dialog>
 <div role="status" class="toast" id="toast"></div>
 
-<script src="script.js?v=34"></script>
+<script src="projetos.js?v=35"></script>
+<script src="script.js?v=35"></script>
 </body>
 </html>
