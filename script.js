@@ -1109,17 +1109,13 @@ function nomeArquivo(base,ext){
     .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60);
   return (limpo||"diagrama")+ext;
 }
-function exportar(tipo){
-  const d=diagramaAtual();
-  if(!d||d.no.length===0){ toast("Adicione blocos antes de exportar.","erro"); return;}
-  if(tipo==="svg"){
-    const {svg:clone}=construirSVGExport();
-    download(nomeArquivo(d.nome,".svg"),new XMLSerializer().serializeToString(clone),"image/svg+xml;charset=utf-8");
-    toast("SVG exportado ✓","sucesso");
-  }else{
-    const {svg:clone,bb}=construirSVGExport();
-    const ser=new XMLSerializer().serializeToString(clone);
-    const url=URL.createObjectURL(new Blob([ser],{type:"image/svg+xml;charset=utf-8"}));
+/* Gera a imagem PNG do diagrama (mesmo pipeline do export PNG: SVG -> canvas,
+   escala 2). Retorna Promise com {blob, w, h} (w/h = pixels da imagem). */
+function pngDoDiagrama(){
+  const {svg:clone,bb}=construirSVGExport();
+  const ser=new XMLSerializer().serializeToString(clone);
+  const url=URL.createObjectURL(new Blob([ser],{type:"image/svg+xml;charset=utf-8"}));
+  return new Promise((resolve,reject)=>{
     const img=new Image();
     img.onload=()=>{
       const scale=2;
@@ -1129,20 +1125,172 @@ function exportar(tipo){
       ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
       URL.revokeObjectURL(url);
-      canvas.toBlob(b=>{
-        const a=document.createElement("a");
-        a.href=URL.createObjectURL(b); a.download=nomeArquivo(d.nome,".png");
-        document.body.appendChild(a); a.click();
-        setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); },300);
-        toast("PNG exportado ✓","sucesso");
-      },"image/png");
+      canvas.toBlob(b=>resolve({blob:b,w:canvas.width,h:canvas.height}),"image/png");
     };
-    img.onerror=()=>{ URL.revokeObjectURL(url); toast("Falha ao exportar PNG.","erro"); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error("falha ao renderizar o diagrama")); };
     img.src=url;
+  });
+}
+function exportar(tipo){
+  const d=diagramaAtual();
+  if(!d||d.no.length===0){ toast("Adicione blocos antes de exportar.","erro"); return;}
+  if(tipo==="svg"){
+    const {svg:clone}=construirSVGExport();
+    download(nomeArquivo(d.nome,".svg"),new XMLSerializer().serializeToString(clone),"image/svg+xml;charset=utf-8");
+    toast("SVG exportado ✓","sucesso");
+  }else{
+    pngDoDiagrama().then(({blob})=>{
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(blob); a.download=nomeArquivo(d.nome,".png");
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(a.href); },300);
+      toast("PNG exportado ✓","sucesso");
+    }).catch(()=>toast("Falha ao exportar PNG.","erro"));
   }
+}
+/* =========================================================================
+   Exportação em .docx (Word) — puro cliente, sem dependências
+   Um .docx é um ZIP com arquivos XML. Aqui:
+   - zipStored: escritor ZIP mínimo (método stored, sem compactação)
+   - exportarDocx: monta o pacote DOCX com o diagrama embutido como imagem PNG
+   ========================================================================= */
+/* Escritor ZIP mínimo (entradas stored, sem compactação). CRC32 + cabeçalhos
+   local/central/final. Suficiente para arquivos DOCX (Word aceita stored). */
+function zipStored(entradas){
+  const encoder=new TextEncoder();
+  const crcTable=(()=>{
+    const t=new Uint32Array(256);
+    for(let i=0;i<256;i++){
+      let c=i;
+      for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+      t[i]=c>>>0;
+    }
+    return t;
+  })();
+  const crc32=u8=>{
+    let c=0xFFFFFFFF;
+    for(let i=0;i<u8.length;i++) c=crcTable[(c^u8[i])&0xFF]^(c>>>8);
+    return (c^0xFFFFFFFF)>>>0;
+  };
+  const agora=new Date();
+  const dosTime=((agora.getHours()&0x1F)<<11)|((agora.getMinutes()&0x3F)<<5)|((agora.getSeconds()/2)&0x1F);
+  const dosDate=(((agora.getFullYear()-1980)&0x7F)<<9)|(((agora.getMonth()+1)&0xF)<<5)|(agora.getDate()&0x1F);
+  const blobs=[]; const central=[]; let offset=0;
+  for(const e of entradas){
+    const nomeU=encoder.encode(e.nome);
+    const dados=e.dados;
+    const crc=crc32(dados);
+    const local=new Uint8Array(30+nomeU.length);
+    const lv=new DataView(local.buffer);
+    lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true); lv.setUint16(6,0,true);
+    lv.setUint16(8,0,true); lv.setUint16(10,0,true); lv.setUint16(12,dosTime,true);
+    lv.setUint16(14,dosDate,true); lv.setUint32(16,crc,true);
+    lv.setUint32(20,dados.length,true); lv.setUint32(24,dados.length,true);
+    lv.setUint16(28,nomeU.length,true); lv.setUint16(30,0,true);
+    local.set(nomeU,30);
+    blobs.push(local,dados);
+    const cd=new Uint8Array(46+nomeU.length);
+    const cv=new DataView(cd.buffer);
+    cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+    cv.setUint16(8,0,true); cv.setUint16(10,0,true); cv.setUint16(12,dosTime,true);
+    cv.setUint16(14,dosDate,true); cv.setUint32(16,crc,true);
+    cv.setUint32(20,dados.length,true); cv.setUint32(24,dados.length,true);
+    cv.setUint16(28,nomeU.length,true); cv.setUint16(30,0,true);
+    cv.setUint16(32,0,true); cv.setUint16(34,0,true); cv.setUint16(36,0,true);
+    cv.setUint32(38,0,true); cv.setUint32(42,offset,true);
+    cd.set(nomeU,46);
+    central.push(cd);
+    offset+=local.length+dados.length;
+  }
+  const cdTotal=central.reduce((s,c)=>s+c.length,0);
+  const cdBlob=new Uint8Array(cdTotal);
+  let cdOff=0;
+  for(const c of central){ cdBlob.set(c,cdOff); cdOff+=c.length; }
+  const end=new Uint8Array(22);
+  const ev=new DataView(end.buffer);
+  ev.setUint32(0,0x06054b50,true); ev.setUint16(4,0,true); ev.setUint16(6,0,true);
+  ev.setUint16(8,entradas.length,true); ev.setUint16(10,entradas.length,true);
+  ev.setUint32(12,cdTotal,true); ev.setUint32(16,offset,true); ev.setUint16(20,0,true);
+  const total=blobs.reduce((s,b)=>s+b.length,0)+cdTotal+end.length;
+  const out=new Uint8Array(total);
+  let o=0;
+  for(const b of blobs){ out.set(b,o); o+=b.length; }
+  out.set(cdBlob,o); o+=cdTotal;
+  out.set(end,o);
+  return out;
+}
+/* Escape para texto XML do Word */
+function escDocx(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+}
+/* Exporta o diagrama atual como .docx: documento Word com o título, uma
+   legenda e a imagem do diagrama embutida (redimensionada para a página). */
+function exportarDocx(){
+  const d=diagramaAtual();
+  if(!d||d.no.length===0){ toast("Adicione blocos antes de exportar.","erro"); return; }
+  pngDoDiagrama().then(({blob,w,h})=>{
+    return blob.arrayBuffer().then(buf=>{
+      const png=new Uint8Array(buf);
+      const cfg=TIPOS[d.tipo]||{nome:d.tipo};
+      // tamanho da imagem na página: no maximo a largura util (6.5in = 5943600 EMU)
+      const PAGE_W=6.5*914400;
+      const cx=Math.min(w*9525, PAGE_W);
+      const cy=Math.round(cx*h/w);
+      const titulo=escDocx(d.nome);
+      const legenda=escDocx(`Diagrama de ${cfg.nome} — ${d.no.length} bloco(s), ${d.seta.length} conexão(ões)`+(d.data?` — ${d.data}`:""));
+      const contentTypes=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
+<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+      const rels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+      const docRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+</Relationships>`;
+      const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<w:body>
+<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t xml:space="preserve">${titulo}</w:t></w:r></w:p>
+<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="20"/><w:color w:val="666666"/></w:rPr><w:t xml:space="preserve">${legenda}</w:t></w:r></w:p>
+<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">
+<wp:extent cx="${cx}" cy="${cy}"/>
+<wp:docPr id="1" name="Diagrama"/>
+<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<pic:pic>
+<pic:nvPicPr><pic:cNvPr id="1" name="image1.png"/><pic:cNvPicPr/></pic:nvPicPr>
+<pic:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+</pic:pic>
+</a:graphicData></a:graphic>
+</wp:inline></w:drawing></w:r></w:p>
+<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>
+</w:body>
+</w:document>`;
+      const encoder=new TextEncoder();
+      const zip=zipStored([
+        {nome:"[Content_Types].xml", dados:encoder.encode(contentTypes)},
+        {nome:"_rels/.rels", dados:encoder.encode(rels)},
+        {nome:"word/document.xml", dados:encoder.encode(documentXml)},
+        {nome:"word/_rels/document.xml.rels", dados:encoder.encode(docRels)},
+        {nome:"word/media/image1.png", dados:png}
+      ]);
+      download(nomeArquivo(d.nome,".docx"),
+        new Blob([zip],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      toast("DOCX exportado ✓","sucesso");
+    });
+  }).catch(()=>toast("Falha ao exportar DOCX.","erro"));
 }
 document.getElementById("btnExportarSVG").addEventListener("click",()=>exportar("svg"));
 document.getElementById("btnExportarPNG").addEventListener("click",()=>exportar("png"));
+document.getElementById("btnExportarDOCX").addEventListener("click",exportarDocx);
 document.getElementById("btnExportarJSON").addEventListener("click",()=>{
   download(nomeArquivo("editor-diagramas",".json"),JSON.stringify(estado.diagramas,null,2),"application/json");
   toast("JSON exportado ✓","sucesso");
