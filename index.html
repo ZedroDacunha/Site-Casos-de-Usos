@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="31">
+<html lang="pt-BR" data-theme="light" data-version="32">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=32">
 </head>
 <body>
 
@@ -65,6 +65,7 @@
         <summary>Como usar o editor</summary>
         <p>Clique em um bloco para inseri-lo no centro ou arraste-o até a posição desejada.</p>
         <p>Use <kbd>T</kbd> para selecionar e mover. Segure Shift para selecionar vários blocos. Um duplo clique abre o texto do bloco.</p>
+        <p>Selecione uma seta e arraste as pontas para reconectar ou os pontos do meio para curvar.</p>
         <p>Use <kbd>C</kbd> para conectar. Clique primeiro na origem e depois no destino.</p>
       </details>
     </aside>
@@ -101,6 +102,7 @@
           <g id="camadaConexoes"></g>
           <g id="camadaRotulos"></g>
           <g id="camadaNos"></g>
+          <g id="alcasLinha"></g>
         </svg>
         <div class="dica-canvas" id="dicaCanvas">Clique nos blocos da paleta para começar — ou arraste um para o canvas</div>
       </div>
@@ -110,6 +112,8 @@
           <label for="campoNomeAtor">Nome do ator</label>
           <input id="campoNomeAtor" type="text" maxlength="80" placeholder="Ex.: Cliente">
         </div>
+        <label id="tipoLinhaGrupo" hidden>Tipo da linha <select id="tipoLinha"></select></label>
+        <button class="fbtn" id="endireitarLinha" type="button" hidden>Endireitar linha</button>
         <button class="fbtn" id="btnEditarTexto" type="button">Editar texto</button>
         <button class="fbtn perigo" id="ferrExcluir" type="button" title="Excluir seleção (Delete)">Excluir</button>
       </div>
@@ -143,6 +147,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="script.js?v=31"></script>
+<script src="script.js?v=32"></script>
 </body>
 </html>
