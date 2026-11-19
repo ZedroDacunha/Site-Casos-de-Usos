@@ -227,7 +227,7 @@ body{
 .conector:hover{stroke:var(--primario);stroke-width:2.4}
 .conector.selecionado{stroke:var(--primario);stroke-width:2.6}
 /* área de clique ampla da seta (linha fina é difícil de clicar) */
-.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:all;cursor:pointer}
+.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:stroke;cursor:pointer}
 /* caixas de rótulo das conexões (cores via classe, não atributo) */
 .conector-caixa{fill:var(--panel);stroke:var(--borda)}
 .conector-marca{font-size:11.5px;font-weight:700;fill:var(--texto-2);pointer-events:none;font-family:inherit}
@@ -287,3 +287,8 @@ body{
   .grupo-nome-ator input{min-width:0;width:10em}
   #opcoesConexao{order:1;width:100%}
 }
+
+#alcasLinha circle{fill:var(--panel);stroke:var(--primario);stroke-width:2;cursor:grab;touch-action:none}
+#alcasLinha circle[data-acao="inserir"]{fill:var(--primario);stroke:var(--panel)}
+#alcasLinha circle:active{cursor:grabbing}
+#tipoLinha{font:inherit;padding:4px;color:var(--texto);background:var(--panel);border:1px solid var(--borda);border-radius:6px}

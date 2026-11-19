@@ -436,8 +436,8 @@ function conexoesAtividade(d,pontosPorNo){
   return caminhos;
 }
 
-function pontoDisponivel(d,id,lado){
-  const ligadas=d.seta.filter(s=>s.de===id || s.para===id);
+function pontoDisponivel(d,id,lado,ignorar=null){
+  const ligadas=d.seta.filter(s=>s!==ignorar && (s.de===id || s.para===id));
   if(ligadas.length>=4){
     toast("Este bloco já tem quatro conexões.","erro");
     return false;
@@ -480,10 +480,6 @@ function parEncaixe(aa,bb){
     p1:pontoFrontal(aa,cb.x,cb.y),
     p2:pontoFrontal(bb,ca.x,ca.y)
   };
-}
-/* Caminho reto entre dois pontos de encaixe — mais natural que o caminho em L */
-function caminhoReto(p1,p2){
-  return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
 }
 /* Cabeça (ponta) da seta como triângulo SÓLIDO (não vazada): a ponta fica em p2 e
     a base atrás, na direção de p1->p2. Desenhada numa camada ABAIXO das linhas das
@@ -575,10 +571,10 @@ function calcularFanout(d,pontosPorNo){
 
 /* Duas marcas próximas podem ser mais largas que o espaço entre as setas.
    Procura uma posição livre ao longo da própria conexão, começando pelo centro. */
-function posicionarRotulo(par,largura,comTexto,ocupados){
+function posicionarRotulo(tracado,largura,comTexto,ocupados){
   let melhor, menor=Infinity;
   for(const t of [.5,.35,.65,.2,.8]){
-    const x=par.p1.x+(par.p2.x-par.p1.x)*t, y=par.p1.y+(par.p2.y-par.p1.y)*t;
+    const {x,y}=tracado.ponto(t);
     const caixa={x1:x-largura/2-3,x2:x+largura/2+3,y1:y-(comTexto?32:10),y2:y+10};
     let area=0;
     for(const c of ocupados){
@@ -592,6 +588,161 @@ function posicionarRotulo(par,largura,comTexto,ocupados){
   return melhor;
 }
 
+// Mede o contorno visível em coordenadas locais uma vez para cada tipo de bloco.
+const contornosPorTipo=new Map();
+function medirContorno(no,grupo){
+  if(contornosPorTipo.has(no.tipo)) return;
+  const formas=no.tipo==="ator" ? grupo.querySelectorAll(".forma-ator") : [grupo.querySelector(".forma-pre")];
+  const contornos=Array.from(formas,forma=>{
+    const comprimento=forma.getTotalLength();
+    const n=Math.max(1,Math.ceil(comprimento/3));
+    return Array.from({length:n+1},(_,i)=>forma.getPointAtLength(comprimento*i/n));
+  });
+  contornosPorTipo.set(no.tipo,contornos);
+}
+function encaixeNoContorno(no,alvo){
+  const x=alvo.x-no.x,y=alvo.y-no.y;
+  let melhor,menor=Infinity;
+  for(const parte of contornosPorTipo.get(no.tipo)){
+    for(let i=1;i<parte.length;i++){
+      const a=parte[i-1],b=parte[i],dx=b.x-a.x,dy=b.y-a.y;
+      const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+      const px=a.x+t*dx,py=a.y+t*dy,dist=(px-x)**2+(py-y)**2;
+      if(dist<menor){menor=dist;melhor={x:no.x+px,y:no.y+py};}
+    }
+  }
+  return melhor;
+}
+function interpolar(a,b,t){
+  return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+}
+// Spline interpolante: cada ponto arrastado fica exatamente sobre a curva.
+function tracadoLinha(p1,p2,dobras){
+  const pontos=[p1,...dobras,p2], trechos=[];
+  let caminho=`M ${p1.x} ${p1.y}`;
+  for(let i=0;i<pontos.length-1;i++){
+    const a=pontos[i],b=pontos[i+1],antes=pontos[i-1]||a,depois=pontos[i+2]||b;
+    const c={x:a.x+(b.x-antes.x)/6,y:a.y+(b.y-antes.y)/6};
+    const e={x:b.x-(depois.x-a.x)/6,y:b.y-(depois.y-a.y)/6};
+    trechos.push({a,b,c,e});
+    caminho+=dobras.length ? ` C ${c.x} ${c.y} ${e.x} ${e.y} ${b.x} ${b.y}` : ` L ${b.x} ${b.y}`;
+  }
+  function ponto(t){
+    if(!dobras.length) return interpolar(p1,p2,t);
+    const i=Math.min(trechos.length-1,Math.floor(t*trechos.length));
+    const u=t*trechos.length-i,{a,b,c,e}=trechos[i];
+    const ac=interpolar(a,c,u),ce=interpolar(c,e,u),eb=interpolar(e,b,u);
+    return interpolar(interpolar(ac,ce,u),interpolar(ce,eb,u),u);
+  }
+  return {caminho,ponto,tangente:trechos.at(-1).e};
+}
+
+const ancorasRender=new Map();
+const alcasLinha=document.getElementById("alcasLinha");
+const tipoLinha=document.getElementById("tipoLinha");
+let gestoLinha=null;
+function setaAtual(){
+  return diagramaAtual()?.seta.find(s=>s.id===estado.setaSelecionada);
+}
+function atualizarControlesLinha(d){
+  const s=setaAtual(), tipos=TIPOS[d.tipo].conexoes;
+  document.getElementById("tipoLinhaGrupo").hidden=!s||tipos.length<2;
+  if(s && tipos.length>1){
+    if(tipoLinha.dataset.diagrama!==d.tipo){
+      tipoLinha.replaceChildren(...tipos.map(t=>new Option(RÓTULO_CONEXAO[t],t)));
+      tipoLinha.dataset.diagrama=d.tipo;
+    }
+    tipoLinha.value=s.tipo;
+  }
+  document.getElementById("endireitarLinha").hidden=!s?.dobras?.length;
+}
+tipoLinha.addEventListener("change",()=>{
+  const s=setaAtual();
+  if(s){s.tipo=tipoLinha.value; salvarLocal(); render();}
+});
+document.getElementById("endireitarLinha").addEventListener("click",()=>{
+  const s=setaAtual();
+  if(s){delete s.dobras; salvarLocal(); render();}
+});
+function mostrarAlcas(par,tracado,dobras){
+  function alca(p,acao,indice,titulo){
+    const c=document.createElementNS(svg.namespaceURI,"circle");
+    c.setAttribute("cx",p.x); c.setAttribute("cy",p.y);
+    c.setAttribute("r",acao==="inserir"?4:6);
+    c.dataset.acao=acao; c.dataset.indice=indice;
+    const dica=document.createElementNS(svg.namespaceURI,"title");
+    dica.textContent=titulo; c.appendChild(dica); alcasLinha.appendChild(c);
+  }
+  for(let i=0;i<=dobras.length;i++){
+    alca(tracado.ponto((i+.5)/(dobras.length+1)),"inserir",i,"Arraste para criar uma curva");
+  }
+  dobras.forEach((p,i)=>alca(p,"mover",i,"Arraste para ajustar a curva"));
+  alca(par.p1,"de",0,"Arraste a origem até a borda de um bloco");
+  alca(par.p2,"para",0,"Arraste o destino até a borda de um bloco");
+}
+alcasLinha.addEventListener("click",ev=>ev.stopPropagation());
+function iniciarGestoLinha(ev,s,acao,indice,peloTraco=false){
+  if(gestoLinha || ev.button!==0 || !s || !acao) return;
+  ev.preventDefault(); ev.stopPropagation();
+  gestoLinha={id:s.id,ponteiro:ev.pointerId,acao,indice,peloTraco,
+    inicio:{x:ev.clientX,y:ev.clientY},dobras:[...(s.dobras||[])]};
+  alcasLinha.setPointerCapture(ev.pointerId);
+}
+alcasLinha.addEventListener("pointerdown",ev=>{
+  iniciarGestoLinha(ev,setaAtual(),ev.target.dataset.acao,Number(ev.target.dataset.indice));
+});
+function atualizarGestoLinha(ev){
+  const g=gestoLinha;
+  if(!g || g.ponteiro!==ev.pointerId) return;
+  if(!g.pos && Math.hypot(ev.clientX-g.inicio.x,ev.clientY-g.inicio.y)<3) return;
+  g.pos=posMundo(ev.clientX,ev.clientY);
+  if(g.acao==="inserir"){g.dobras.splice(g.indice,0,g.pos); g.acao="mover";}
+  if(g.acao==="mover") g.dobras[g.indice]=g.pos;
+}
+alcasLinha.addEventListener("pointermove",ev=>{
+  if(gestoLinha?.ponteiro!==ev.pointerId) return;
+  atualizarGestoLinha(ev);
+  if(gestoLinha.pos) render();
+});
+function mudarExtremidade(s,g){
+  const d=diagramaAtual(), atividade=d.tipo==="atividades";
+  let candidato,menor=18/estado.zoom;
+  for(const no of d.no){
+    const aa=ancorasRender.get(no.id);
+    if(!aa) continue;
+    const opcoes=atividade ? Object.entries(aa) : [[null,encaixeNoContorno(no,g.pos)]];
+    for(const [lado,p] of opcoes){
+      const distancia=Math.hypot(p.x-g.pos.x,p.y-g.pos.y);
+      if(distancia<=menor){menor=distancia;candidato={no,lado,p};}
+    }
+  }
+  if(!candidato){toast("Solte a ponta sobre "+(atividade?"uma âncora.":"a borda de um bloco."),"erro");return;}
+  const {no,lado,p}=candidato, origem=g.acao==="de";
+  const de=origem?no.id:s.de,para=origem?s.para:no.id;
+  if(de===para || d.seta.some(o=>o!==s && o.de===de && o.para===para)){
+    toast("Escolha outro bloco para essa conexão.","erro"); return;
+  }
+  if(atividade && !pontoDisponivel(d,no.id,lado,s)) return;
+  s[g.acao]=no.id;
+  if(atividade) s[origem?"ancoraDe":"ancoraPara"]=lado;
+  else s[origem?"pontoDe":"pontoPara"]={x:p.x-no.x,y:p.y-no.y};
+  salvarLocal();
+}
+alcasLinha.addEventListener("pointerup",ev=>{
+  if(gestoLinha?.ponteiro!==ev.pointerId) return;
+  atualizarGestoLinha(ev);
+  const g=gestoLinha,s=setaAtual(); gestoLinha=null;
+  if(s?.id===g.id && !g.pos && g.peloTraco){clickSeta(s);return;}
+  if(s?.id===g.id && g.pos){
+    if(g.acao==="mover"){s.dobras=g.dobras; salvarLocal();}
+    else mudarExtremidade(s,g);
+  }
+  render();
+});
+alcasLinha.addEventListener("lostpointercapture",()=>{
+  if(gestoLinha){gestoLinha=null; render();}
+});
+
 function render(){
   const d=diagramaAtual(); if(!d) return;
   // remove conexões órfãs (um dos blocos não existe mais) — evita setas invisíveis
@@ -599,7 +750,9 @@ function render(){
   const antesSetas=d.seta.length;
   d.seta=d.seta.filter(s=>d.no.some(n=>n.id===s.de)&&d.no.some(n=>n.id===s.para));
   if(d.seta.length!==antesSetas) salvarLocal();
-  const pontosPorNo=new Map();
+  const pontosPorNo=ancorasRender;
+  pontosPorNo.clear();
+  alcasLinha.replaceChildren();
   camadaNos.innerHTML="";
   for(const no of d.no){
     const {w,h}=dimsPadrao(no.tipo);
@@ -612,6 +765,7 @@ function render(){
     camadaNos.appendChild(g);
     const aa=ancoras(no,g,w,h);
     pontosPorNo.set(no.id,aa);
+    if(d.tipo!=="atividades") medirContorno(no,g);
     const forma=formaDoTipo(no.tipo);
     let tx=w/2, ty=h/2+5, anchor="middle";
     if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;anchor="middle";}
@@ -679,11 +833,23 @@ function render(){
   camadaRotulos.replaceChildren();
   const ocupados=[];
   const fanout=d.tipo==="atividades" ? conexoesAtividade(d,pontosPorNo) : calcularFanout(d,pontosPorNo);
+  const nosPorId=new Map(d.no.map(no=>[no.id,no]));
   for(const s of d.seta){
     const par=fanout.get(s.id);
     if(!par) continue;
-    const dPath=caminhoReto(par.p1,par.p2);
+    if(d.tipo!=="atividades"){
+      const a=nosPorId.get(s.de),b=nosPorId.get(s.para);
+      par.p1=s.pontoDe ? {x:a.x+s.pontoDe.x,y:a.y+s.pontoDe.y} : encaixeNoContorno(a,par.p1);
+      par.p2=s.pontoPara ? {x:b.x+s.pontoPara.x,y:b.y+s.pontoPara.y} : encaixeNoContorno(b,par.p2);
+    }
+    const gesto=gestoLinha?.id===s.id ? gestoLinha : null;
+    if(gesto?.pos && gesto.acao==="de") par.p1=gesto.pos;
+    if(gesto?.pos && gesto.acao==="para") par.p2=gesto.pos;
+    const dobras=gesto?.dobras || s.dobras || [];
+    const tracado=tracadoLinha(par.p1,par.p2,dobras);
+    const dPath=tracado.caminho;
     const sel=estado.setaSelecionada===s.id;
+    if(sel && estado.ferramenta==="selecionar") mostrarAlcas(par,tracado,dobras);
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
     const marca=vazio?`<<${s.tipo}>>`:"";
@@ -691,7 +857,7 @@ function render(){
     // ponta não ser vazada e as linhas que cruzam por ela ficarem visíveis
     if(!semSeta){
       const pol=document.createElementNS("http://www.w3.org/2000/svg","polygon");
-      pol.setAttribute("points",cabecaSeta(par.p1,par.p2));
+      pol.setAttribute("points",cabecaSeta(tracado.tangente,par.p2));
       pol.setAttribute("class","seta-cabeca"+(sel?" selecionada":""));
       camadaSetasFundo.appendChild(pol);
     }
@@ -701,7 +867,7 @@ function render(){
     let rotulos="";
     if(marca||texto){
       const larguraMarca=marca.length*5.5+10, larguraTexto=texto.length*7.2+12;
-      const {x,y}=posicionarRotulo(par,Math.max(larguraMarca,larguraTexto),Boolean(texto),ocupados);
+      const {x,y}=posicionarRotulo(tracado,Math.max(larguraMarca,larguraTexto),Boolean(texto),ocupados);
       if(marca) rotulos+=`<rect class="conector-caixa" x="${x-larguraMarca/2}" y="${y-8}" width="${larguraMarca}" height="16" rx="4"/>
         <text class="conector-marca-pequena ${s.tipo}" x="${x}" y="${y+3}" text-anchor="middle">${esc(marca)}</text>`;
       if(texto){
@@ -718,6 +884,18 @@ function render(){
     g.onclick=ev=>{ ev.stopPropagation(); clickSeta(s); };
     // duplo-clique seleciona a seta (qualquer ferramenta)
     g.ondblclick=ev=>{ ev.stopPropagation(); selecionarSeta(s); };
+    if(sel && estado.ferramenta==="selecionar"){
+      g.onpointerdown=ev=>{
+        const p=posMundo(ev.clientX,ev.clientY);
+        const n=dobras.length+1;
+        let indice=0,menor=Infinity;
+        for(let i=0;i<n*12;i++){
+          const q=tracado.ponto((i+.5)/(n*12)),dist=Math.hypot(q.x-p.x,q.y-p.y);
+          if(dist<menor){indice=Math.floor(i/12);menor=dist;}
+        }
+        iniciarGestoLinha(ev,s,"inserir",indice,true);
+      };
+    }
     camadaConexoes.appendChild(g);
     if(rotulos){
       const grupo=g.cloneNode(false);
@@ -734,6 +912,7 @@ function render(){
   document.getElementById("btnEditarTexto").hidden=quantidade>1;
   info.textContent=estado.setaSelecionada ? "Seta selecionada" :
     quantidade===1 ? "Bloco selecionado" : quantidade+" blocos selecionados";
+  atualizarControlesLinha(d);
   atualizarCampoNomeAtor();
   posicionarInline(); // acompanha o bloco se ele se mover enquanto o campo de edição está aberto
 }
@@ -1091,9 +1270,9 @@ function bboxDoCanvas(){
     if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
     if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
   }
-  const camadaRotulos=document.getElementById("camadaRotulos");
-  if(camadaRotulos.childElementCount){
-    const r=camadaRotulos.getBBox();
+  for(const camada of [camadaConexoes,camadaSetasFundo,document.getElementById("camadaRotulos")]){
+    if(!camada.childElementCount) continue;
+    const r=camada.getBBox();
     minX=Math.min(minX,r.x); minY=Math.min(minY,r.y);
     maxX=Math.max(maxX,r.x+r.width); maxY=Math.max(maxY,r.y+r.height);
   }
@@ -1121,7 +1300,7 @@ function cssExport(formato){
 .forma-ator{fill:none;stroke:${cor("--texto-2")}}
 .no-texto{fill:${cor("--texto")};font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
 .conector{fill:none;stroke:${cor("--texto-2")};stroke-width:1.8}
-.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:all;cursor:pointer}
+.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:stroke;cursor:pointer}
 .conector-caixa{fill:${cor("--panel")};stroke:${cor("--borda")}}
 .conector-marca{font-size:11.5px;font-weight:700;fill:${cor("--texto-2")};font-family:inherit}
 .conector-marca.include{fill:${cor("--sucesso")}}
@@ -1144,6 +1323,7 @@ function construirSVGExport(formato){
   const clone=svg.cloneNode(true);
   clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
   clone.querySelector("#gradePlano")?.remove();
+  clone.querySelector("#alcasLinha")?.remove();
   const contNos=clone.querySelector("#camadaNos");
   if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alinha-ator").forEach(n=>n.remove());
   const contSetas=clone.querySelector("#camadaConexoes");
