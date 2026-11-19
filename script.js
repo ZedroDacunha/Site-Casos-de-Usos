@@ -1052,37 +1052,42 @@ function bboxDoCanvas(){
 /* CSS mínimo injetado no SVG exportado: variáveis do tema atual + classes de
    forma/texto/conector — o arquivo SVG standalone não carrega o style.css, então
    os estilos devem vir junto no próprio arquivo para renderizar com cores corretas */
-function cssExport(){
-  const vars=["--primario","--primario-2","--panel","--borda","--borda-2","--texto","--texto-2","--sucesso","--aviso"];
-  let root="";
-  for(const v of vars){
-    const val=getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-    if(val) root+=v+":"+val+";";
-  }
-  return ":root{"+root+"}"+`
-.forma-pre{stroke:var(--borda-2);stroke-width:2}
-.forma-oval,.forma-alvo-ext,.forma-barra{fill:var(--primario)}
-.forma-alvo-int{fill:var(--panel);stroke:var(--primario)}
-.forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:var(--panel)}
-.forma-ator{fill:none;stroke:var(--texto-2)}
-.no-texto{fill:var(--texto);font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
-.conector{fill:none;stroke:var(--texto-2);stroke-width:1.8}
+// Cores da imagem em papel branco, inclusive quando o editor usa o tema escuro.
+const coresPNG={
+  "--primario":"#294e91", "--panel":"#f0f5fc", "--borda":"#8999ae",
+  "--borda-2":"#354e70", "--texto":"#17283d", "--texto-2":"#41546c",
+  "--sucesso":"#176144", "--aviso":"#824309"
+};
+function cssExport(formato){
+  const tema=getComputedStyle(document.documentElement);
+  const cor=nome=>formato==="png" ? coresPNG[nome] : tema.getPropertyValue(nome).trim();
+  return `
+.forma-pre{stroke:${cor("--borda-2")};stroke-width:2}
+.forma-oval,.forma-alvo-ext,.forma-barra{fill:${cor("--primario")}}
+.forma-alvo-int{fill:${cor("--panel")};stroke:${cor("--primario")}}
+.forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:${cor("--panel")}}
+.forma-ator{fill:none;stroke:${cor("--texto-2")}}
+.no-texto{fill:${cor("--texto")};font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
+.conector{fill:none;stroke:${cor("--texto-2")};stroke-width:1.8}
 .conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:all;cursor:pointer}
-.conector-caixa{fill:var(--panel);stroke:var(--borda)}
-.conector-marca{font-size:11.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
-.conector-marca.include{fill:var(--sucesso)}
-.conector-marca.extend{fill:var(--aviso)}
-.seta-marca{fill:var(--texto-2)}
-.seta-marca-sel{fill:var(--primario)}
-.seta-cabeca{fill:var(--texto-2)}
-.seta-cabeca.selecionada{fill:var(--primario)}
-.conector-marca-pequena{font-size:8.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
-.conector-marca-pequena.include{fill:var(--sucesso)}
-.conector-marca-pequena.extend{fill:var(--aviso)}
+.conector-caixa{fill:${cor("--panel")};stroke:${cor("--borda")}}
+.conector-marca{font-size:11.5px;font-weight:700;fill:${cor("--texto-2")};font-family:inherit}
+.conector-marca.include{fill:${cor("--sucesso")}}
+.conector-marca.extend{fill:${cor("--aviso")}}
+.seta-marca{fill:${cor("--texto-2")}}
+.seta-marca-sel{fill:${cor("--primario")}}
+.seta-cabeca{fill:${cor("--texto-2")}}
+.seta-cabeca.selecionada{fill:${cor("--primario")}}
+.conector-marca-pequena{font-size:8.5px;font-weight:700;fill:${cor("--texto-2")};font-family:inherit}
+.conector-marca-pequena.include{fill:${cor("--sucesso")}}
+.conector-marca-pequena.extend{fill:${cor("--aviso")}}${formato==="png" ? `
+.forma-oval + .no-texto{fill:white}
+.conector-caixa{fill:white}
+.conector-marca,.conector-marca-pequena{font-family:"Segoe UI",system-ui,sans-serif}
+.conector-marca-pequena{font-size:10px}` : ""}
 `;
 }
-function construirSVGExport(){
-  const d=diagramaAtual();
+function construirSVGExport(formato){
   const bb=bboxDoCanvas();
   const clone=svg.cloneNode(true);
   clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
@@ -1095,7 +1100,7 @@ function construirSVGExport(){
   clone.setAttribute("width",bb.w); clone.setAttribute("height",bb.h);
   // injeta os estilos (variáveis do tema + classes) para o SVG standalone renderizar correto
   const estilo=document.createElementNS("http://www.w3.org/2000/svg","style");
-  estilo.textContent=cssExport();
+  estilo.textContent=cssExport(formato);
   clone.insertBefore(estilo,clone.firstChild);
   const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
   bg.setAttribute("x",bb.x);bg.setAttribute("y",bb.y);bg.setAttribute("width",bb.w);bg.setAttribute("height",bb.h);
@@ -1119,11 +1124,11 @@ function exportar(tipo){
   const d=diagramaAtual();
   if(!d||d.no.length===0){ toast("Adicione blocos antes de exportar.","erro"); return;}
   if(tipo==="svg"){
-    const {svg:clone}=construirSVGExport();
+    const {svg:clone}=construirSVGExport(tipo);
     download(nomeArquivo(d.nome,".svg"),new XMLSerializer().serializeToString(clone),"image/svg+xml;charset=utf-8");
     toast("SVG exportado ✓","sucesso");
   }else{
-    const {svg:clone,bb}=construirSVGExport();
+    const {svg:clone,bb}=construirSVGExport(tipo);
     const ser=new XMLSerializer().serializeToString(clone);
     const url=URL.createObjectURL(new Blob([ser],{type:"image/svg+xml;charset=utf-8"}));
     const img=new Image();
