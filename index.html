@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="37">
+<html lang="pt-BR" data-theme="light" data-version="38">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=38">
 </head>
 <body>
 
@@ -88,6 +88,7 @@
         <summary>Como usar o editor</summary>
         <p>Clique em um bloco para inseri-lo no centro ou arraste-o até a posição desejada.</p>
         <p>Use <kbd>T</kbd> para selecionar e mover. Segure Shift para selecionar vários blocos. Um duplo clique abre o texto do bloco.</p>
+        <p>Arraste o quadrado no canto inferior direito da caixa para mudar seu tamanho. Ao editar o texto, Shift+Enter insere uma quebra de linha.</p>
         <p>Selecione uma seta e arraste as pontas para reconectar ou os pontos do meio para curvar.</p>
         <p>Ctrl+C copia a seleção, Ctrl+V cola e Ctrl+D duplica. Ctrl+A seleciona todos os blocos. Uma seta copiada sozinha inclui os dois blocos ligados a ela.</p>
         <p>Ctrl+Z desfaz. Ctrl+Shift+Z ou Ctrl+Y refaz. No Mac, use ⌘ no lugar de Ctrl.</p>
@@ -137,6 +138,10 @@
         <div class="grupo-nome-ator" id="grupoNomeAtor" style="display:none">
           <label for="campoNomeAtor">Nome do ator</label>
           <input id="campoNomeAtor" type="text" maxlength="80" placeholder="Ex.: Cliente">
+        </div>
+        <div id="camposTamanho" role="group" aria-label="Tamanho da caixa" hidden>
+          <label>Largura <input type="number" name="w" min="56" max="5000" step="1"></label>
+          <label>Altura <input type="number" name="h" min="40" max="5000" step="1"></label>
         </div>
         <label id="grupoCondicao" hidden>Condição da saída
           <input id="campoCondicao" type="text" placeholder="Ex.: Sim ou Não" autocomplete="off">
@@ -198,6 +203,6 @@
 <div role="status" class="toast" id="toast"></div>
 
 <script src="projetos.js?v=35"></script>
-<script src="script.js?v=37"></script>
+<script src="script.js?v=38"></script>
 </body>
 </html>
