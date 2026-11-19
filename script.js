@@ -243,6 +243,23 @@ function toast(msg,tipo){
 }
 function diagramaAtual(){ return estado.diagramas.find(d=>d.id===estado.diagramaAtualId); }
 
+const dialogoConfirmacao=document.getElementById("dialogoConfirmacao");
+function confirmarAcao(titulo,alvo,mensagem,acao){
+  if(dialogoConfirmacao.open) return Promise.resolve(false);
+  document.getElementById("tituloConfirmacao").textContent=titulo;
+  document.getElementById("alvoConfirmacao").textContent=alvo;
+  document.getElementById("mensagemConfirmacao").textContent=mensagem;
+  document.getElementById("confirmarAcao").textContent=acao;
+  dialogoConfirmacao.returnValue="cancelar";
+  dialogoConfirmacao.showModal();
+  return new Promise(resolve=>{
+    dialogoConfirmacao.addEventListener("close",()=>resolve(dialogoConfirmacao.returnValue==="confirmar"),{once:true});
+  });
+}
+function quantidadeItens(n,singular,plural){
+  return n+" "+(n===1?singular:plural);
+}
+
 /* ---------- Persistência ---------- */
 function salvarLocal(grupo=null){
   registrarEdicao(grupo);
@@ -380,14 +397,23 @@ function renderInicio(){
   }
 }
 document.getElementById("buscaDiagramas").addEventListener("input",renderInicio);
-function excluirDiagrama(id){
+async function excluirDiagrama(id){
   const d=estado.diagramas.find(x=>x.id===id);
   if(!d) return;
-  if(!confirm(`Excluir o diagrama "${d.nome}" e todo o seu conteúdo?`)) return;
+  const associados=estado.projetos.filter(p=>p.diagramas.includes(id)).length;
+  const mensagem=associados
+    ? "O diagrama será excluído da biblioteca e removido de "+quantidadeItens(associados,"projeto","projetos")+". Essa ação é permanente."
+    : "O diagrama e todo o seu conteúdo serão excluídos permanentemente da biblioteca.";
+  if(!await confirmarAcao("Excluir diagrama?",d.nome||"Sem título",mensagem,"Excluir diagrama")) return;
+  const diagramasAntes=estado.diagramas, projetosAntes=estado.projetos;
   estado.diagramas=estado.diagramas.filter(x=>x.id!==id);
-  for(const p of estado.projetos) p.diagramas=p.diagramas.filter(item=>item!==id);
-  if(estado.diagramaAtualId===id) estado.diagramaAtualId=null;
-  salvarLocal(); renderInicio();
+  estado.projetos=estado.projetos.map(p=>p.diagramas.includes(id)?{...p,diagramas:p.diagramas.filter(item=>item!==id)}:p);
+  if(!salvarLocal()){
+    estado.diagramas=diagramasAntes; estado.projetos=projetosAntes;
+    return;
+  }
+  renderInicio();
+  document.getElementById("abaDiagramas").focus({preventScroll:true});
   toast("Diagrama excluído","sucesso");
 }
 function abrirDiagrama(id){
@@ -1336,18 +1362,35 @@ function adicionarSeta(de,para,ancoraDe,ancoraPara){
   if(condicao) campoCondicao.focus({preventScroll:true});
   else toast("Seta criada ✓","sucesso");
 }
-function excluirSelecionados(){
+async function excluirSelecionados(){
   const d=diagramaAtual();
-  const nos=[...estado.selecionados].map(id=>d.no.find(n=>n.id===id)).filter(Boolean);
-  if(nos.length===0&&!estado.setaSelecionada){ toast("Nada selecionado para excluir.","erro"); return;}
-  const msg=nos.length?`Excluir ${nos.length} bloco(s) e todas as conexões ligadas a eles?`:"Excluir a seta selecionada?";
-  if(!confirm(msg)) return;
-  const ids=new Set(nos.map(n=>n.id));
+  if(!d) return;
+  const ids=new Set(estado.selecionados);
+  const nos=d.no.filter(n=>ids.has(n.id));
+  const setas=d.seta.filter(s=>ids.has(s.de)||ids.has(s.para)||s.id===estado.setaSelecionada);
+  if(!nos.length && !setas.length){toast("Nada selecionado para excluir.","erro");return;}
+  const nomeNo=no=>textoDoBloco(no).trim() || TIPOS[d.tipo].paleta.find(item=>item.id===no.tipo)?.label || "Bloco";
+  let alvo,acao;
+  if(nos.length){
+    alvo=nos.length===1 ? nomeNo(nos[0]) : quantidadeItens(nos.length,"bloco selecionado","blocos selecionados");
+    acao=nos.length===1 ? "Excluir bloco" : "Excluir blocos";
+  }else{
+    const seta=setas[0], origem=d.no.find(n=>n.id===seta.de), destino=d.no.find(n=>n.id===seta.para);
+    alvo=origem && destino ? nomeNo(origem)+" → "+nomeNo(destino) : "Conexão selecionada";
+    acao="Excluir conexão";
+  }
+  const mensagem=nos.length && setas.length
+    ? "A exclusão inclui "+quantidadeItens(setas.length,"conexão","conexões")+". Você pode desfazer essa alteração no editor."
+    : "Você pode desfazer essa alteração no editor.";
+  if(!await confirmarAcao(acao+"?",alvo,mensagem,acao)) return;
   d.no=d.no.filter(n=>!ids.has(n.id));
-  d.seta=d.seta.filter(s=>!ids.has(s.de)&&!ids.has(s.para)&&s.id!==estado.setaSelecionada);
+  const removidas=new Set(setas.map(s=>s.id));
+  d.seta=d.seta.filter(s=>!removidas.has(s.id));
   estado.selecionados.clear(); estado.setaSelecionada=null;
-  salvarLocal(); render();
-  toast("Elementos excluídos","sucesso");
+  if(ids.has(estado.origemConexao)){estado.origemConexao=null;estado.ancoraOrigem=null;}
+  const salvo=salvarLocal();
+  render(); svg.focus({preventScroll:true});
+  if(salvo) toast("Seleção excluída","sucesso");
 }
 function adicionarBloco(tipo,x,y){
   const d=diagramaAtual();
@@ -1553,13 +1596,16 @@ function definirFerramenta(f){
 document.getElementById("ferrSelecionar").addEventListener("click",()=>definirFerramenta("selecionar"));
 document.getElementById("ferrConectar").addEventListener("click",()=>definirFerramenta("conectar"));
 document.getElementById("ferrExcluir").addEventListener("click",excluirSelecionados);
-document.getElementById("ferrLimpar").addEventListener("click",()=>{
+document.getElementById("ferrLimpar").addEventListener("click",async ()=>{
   const d=diagramaAtual();
   if(d.no.length===0&&d.seta.length===0){ toast("O canvas já está vazio.","erro"); return;}
-  if(!confirm(`Remover todos os ${d.no.length} bloco(s) e ${d.seta.length} conexão(ões)?`)) return;
+  const itens=quantidadeItens(d.no.length,"bloco","blocos")+" e "+quantidadeItens(d.seta.length,"conexão","conexões");
+  if(!await confirmarAcao("Limpar diagrama?",d.nome||"Sem título","Remover "+itens+" da área de desenho? Você pode desfazer essa alteração no editor.","Limpar diagrama")) return;
   d.no=[]; d.seta=[]; estado.selecionados.clear(); estado.setaSelecionada=null;
-  salvarLocal(); render();
-  toast("Canvas limpo","sucesso");
+  estado.origemConexao=null; estado.ancoraOrigem=null;
+  const salvo=salvarLocal();
+  render(); svg.focus({preventScroll:true});
+  if(salvo) toast("Diagrama limpo","sucesso");
 });
 document.getElementById("tituloDiagrama").addEventListener("input",e=>{
   const d=diagramaAtual(); if(!d) return;
@@ -1862,11 +1908,11 @@ document.getElementById("btnImportarJSON").addEventListener("click",()=>document
 document.getElementById("arquivoJSON").addEventListener("change",e=>{
   const arquivo=e.target.files[0]; if(!arquivo) return;
   const leitor=new FileReader();
-  leitor.onload=()=>{
+  leitor.onload=async ()=>{
     try{
       const obj=JSON.parse(leitor.result);
       const colecao=lerColecao(obj);
-      if((estado.diagramas.length || estado.projetos.length) && !confirm("Substituir a coleção local de diagramas e projetos pela coleção deste arquivo?")){
+      if((estado.diagramas.length || estado.projetos.length) && !await confirmarAcao("Substituir biblioteca?",arquivo.name,"Os diagramas e projetos salvos neste navegador serão substituídos pelos deste arquivo.","Substituir biblioteca")){
         e.target.value="";
         return;
       }

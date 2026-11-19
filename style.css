@@ -420,3 +420,18 @@ html[data-theme="dark"] .modelo-roteiro{--tinta:#f1d0ae;--folha:#583e32;--campo:
   .historico-acoes,.zoom,.ferr-grupo[aria-label="Modo de edição"]{padding:1px}
   .historico-acoes .fbtn{width:28px}
 }
+
+/* Confirmação de operações que removem conteúdo. */
+.confirmacao{width:min(420px,calc(100% - 32px));max-height:90dvh;border:1px solid var(--borda);border-radius:16px}
+.confirmacao-corpo{padding:24px;display:grid;gap:12px}
+.confirmacao-icone{display:grid;place-items:center;width:42px;height:42px;background:var(--erro-claro);color:var(--erro);border-radius:12px}
+.confirmacao-icone svg{width:23px;height:23px}
+.confirmacao h2{font-size:1.35rem;line-height:1.2;letter-spacing:-.025em}
+.confirmacao p{font-size:.9375rem;line-height:1.5;overflow-wrap:anywhere;color:var(--texto-2)}
+.confirmacao .confirmacao-alvo{color:var(--texto);font-weight:600;background:var(--panel-2);border:1px solid var(--borda);border-radius:8px;padding:8px 12px;white-space:pre-line;max-height:24vh;overflow:auto}
+.confirmacao .modal-rodape{flex-wrap:wrap;padding:14px 24px}
+.confirmacao .btn{justify-content:center;min-height:40px}
+.confirmar-acao{background:#ad293d;color:white}
+.confirmar-acao:hover{background:#8c1e30}
+html[data-theme="dark"] .confirmar-acao{background:#ffa3a9;color:#361319}
+html[data-theme="dark"] .confirmar-acao:hover{background:#ffbdc1}

@@ -42,12 +42,17 @@ function renderProjetos(){
     const pdf=botaoProjeto("Baixar PDF",()=>exportarProjeto(p));
     pdf.disabled=exportandoProjeto||!p.diagramas.length;
     acoes.append(botaoProjeto("Organizar",()=>abrirProjeto(p)),pdf);
-    acoes.appendChild(botaoProjeto("Excluir",()=>{
-      if(!confirm("Excluir o projeto “"+p.nome+"”? Os diagramas continuam em Meus diagramas.")) return;
+    acoes.appendChild(botaoProjeto("Excluir",async ()=>{
+      const mensagem=p.diagramas.length
+        ? "A organização das páginas será excluída. Os diagramas continuarão disponíveis na biblioteca."
+        : "Este projeto vazio será excluído permanentemente da biblioteca.";
+      if(!await confirmarAcao("Excluir projeto?",p.nome||"Sem título",mensagem,"Excluir projeto")) return;
       const antes=estado.projetos;
       estado.projetos=antes.filter(item=>item.id!==p.id);
       if(!salvarLocal()){estado.projetos=antes;return;}
       renderInicio();
+      document.getElementById("abaProjetos").focus({preventScroll:true});
+      toast("Projeto excluído","sucesso");
     },"Excluir projeto "+p.nome));
     card.append(titulo,detalhes,acoes); lista.appendChild(card);
   }

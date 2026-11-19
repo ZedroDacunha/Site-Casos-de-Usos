@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="42">
+<html lang="pt-BR" data-theme="light" data-version="43">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=42">
+<link rel="stylesheet" href="style.css?v=43">
 </head>
 <body>
 
@@ -212,9 +212,25 @@
     </div>
   </form>
 </dialog>
+<dialog id="dialogoConfirmacao" class="modal-fundo confirmacao" aria-labelledby="tituloConfirmacao" aria-describedby="alvoConfirmacao mensagemConfirmacao">
+  <form method="dialog">
+    <div class="confirmacao-corpo">
+      <span class="confirmacao-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6m4-6v6"/></svg>
+      </span>
+      <h2 id="tituloConfirmacao"></h2>
+      <p id="alvoConfirmacao" class="confirmacao-alvo"></p>
+      <p id="mensagemConfirmacao"></p>
+    </div>
+    <div class="modal-rodape">
+      <button type="submit" class="btn btn-secundario" value="cancelar" autofocus>Cancelar</button>
+      <button type="submit" id="confirmarAcao" class="btn confirmar-acao" value="confirmar">Excluir</button>
+    </div>
+  </form>
+</dialog>
 <div role="status" class="toast" id="toast"></div>
 
-<script src="projetos.js?v=35"></script>
-<script src="script.js?v=42"></script>
+<script src="projetos.js?v=43"></script>
+<script src="script.js?v=43"></script>
 </body>
 </html>
