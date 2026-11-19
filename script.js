@@ -284,7 +284,7 @@ function abrirDiagrama(id){
   document.getElementById("telaEditor").classList.add("ativa");
   renderPaleta(); renderConexoes(); render();
   iniciarHistorico(d);
-  aplicarZoomVisual();
+  aplicarZoomVisual("abrir");
 }
 function voltarInicio(){
   historico=null;
@@ -395,12 +395,22 @@ const camadaNos=document.getElementById("camadaNos");
 const camadaConexoes=document.getElementById("camadaConexoes");
 const camadaSetasFundo=document.getElementById("camadaSetasFundo");
 
-function aplicarZoomVisual(){
-  const wrap=document.getElementById("canvasWrap");
-  const r=wrap.getBoundingClientRect();
+function aplicarZoomVisual(motivo="zoom"){
+  const r=svg.getBoundingClientRect();
+  if(!r.width || !r.height) return;
   const w=r.width/estado.zoom, h=r.height/estado.zoom;
-  svg.setAttribute("viewBox",`${-w/2} ${-h/2} ${w} ${h}`);
+  const vb=svg.viewBox.baseVal;
+  let x=vb.x,y=vb.y;
+  if(motivo==="abrir" || !vb.width || !vb.height){
+    x=-w/2; y=-h/2;
+  }else if(motivo==="zoom"){
+    // Aproxima ou afasta em torno do centro que o usuário está vendo.
+    x+=(vb.width-w)/2; y+=(vb.height-h)/2;
+  }
+  // Quando um painel abre ou fecha, só muda a extensão da área visível.
+  svg.setAttribute("viewBox",`${x} ${y} ${w} ${h}`);
   document.getElementById("zoomContador").textContent=Math.round(estado.zoom*100)+"%";
+  posicionarInline();
 }
 function posMundo(clientX,clientY){
   // conversão de coordenadas de tela para o plano do SVG usando getBoundingClientRect
@@ -716,7 +726,7 @@ campoCondicao.addEventListener("input",()=>{
   salvarLocal("condicao:"+s.id); render();
 });
 campoCondicao.addEventListener("keydown",ev=>{
-  if(ev.key==="Enter"){ev.preventDefault();svg.focus();}
+  if(ev.key==="Enter"){ev.preventDefault();svg.focus({preventScroll:true});}
 });
 function atualizarControlesLinha(d){
   const s=setaAtual(), tipos=TIPOS[d.tipo].conexoes;
@@ -1133,7 +1143,7 @@ function abrirInline(no){
   const ih=input.offsetHeight||30;
   input.style.top=(p.y - ih/2)+"px";
   inlineEdit={input,no,original:no.texto||""};
-  input.focus(); input.select();
+  input.focus({preventScroll:true}); input.select();
   input.addEventListener("input",()=>{
     no.texto=input.value;
     render();
@@ -1174,7 +1184,7 @@ function adicionarSeta(de,para,ancoraDe,ancoraPara){
   const condicao=saidaDecisao(d,seta);
   if(condicao){estado.selecionados.clear();estado.setaSelecionada=seta.id;}
   render(); salvarLocal();
-  if(condicao) campoCondicao.focus();
+  if(condicao) campoCondicao.focus({preventScroll:true});
   else toast("Seta criada ✓","sucesso");
 }
 function excluirSelecionados(){
@@ -1193,9 +1203,8 @@ function excluirSelecionados(){
 function adicionarBloco(tipo,x,y){
   const d=diagramaAtual();
   if(x===undefined||y===undefined){
-    // centro do plano: o viewBox é centrado em (0,0), então adicionar em (0,0)
-    // coloca o bloco no centro visível da tela, não num canto
-    x=0; y=0;
+    const vista=svg.viewBox.baseVal;
+    x=vista.x+vista.width/2; y=vista.y+vista.height/2;
   }
   const dim=dimsPadrao(tipo);
   const no={id:novoId(),tipo,x:Math.round(x-dim.w/2),y:Math.round(y-dim.h/2),texto:formaDoTipo(tipo)==="limite"?"Sistema":""};
@@ -1208,21 +1217,34 @@ function adicionarBloco(tipo,x,y){
 
 /* ---------- Arrastar blocos e pan ---------- */
 svg.addEventListener("pointerdown",ev=>{
-  if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")||ev.target.classList.contains("ancora")) return;
-  if(estado.ferramenta==="selecionar"&&!estado.origemConexao){
-    const p0=posMundo(ev.clientX,ev.clientY);
-    svg.classList.add("arrastando-bg");
-    const mover=e=>{
-      const p=posMundo(e.clientX,e.clientY);
-      const vb=svg.viewBox.baseVal;
-      svg.setAttribute("viewBox",`${vb.x+(p0.x-p.x)} ${vb.y+(p0.y-p.y)} ${vb.width} ${vb.height}`);
-    };
-    const fim=()=>{ svg.classList.remove("arrastando-bg");
-      svg.removeEventListener("pointermove",mover); svg.removeEventListener("pointerup",fim); svg.removeEventListener("pointercancel",fim); };
-    svg.addEventListener("pointermove",mover);
-    svg.addEventListener("pointerup",fim);
-    svg.addEventListener("pointercancel",fim);
-  }
+  if(ev.button!==0 || !ev.isPrimary || estado.ferramenta!=="selecionar" || estado.origemConexao) return;
+  if(ev.target.closest(".no-grp,.seta-grp,#alcasLinha")) return;
+  const ponteiro=ev.pointerId;
+  const inicio=posMundo(ev.clientX,ev.clientY);
+  let moveu=false;
+  svg.setPointerCapture(ponteiro);
+  svg.classList.add("arrastando-bg");
+  const mover=e=>{
+    if(e.pointerId!==ponteiro) return;
+    if(!moveu && Math.hypot(e.clientX-ev.clientX,e.clientY-ev.clientY)<3) return;
+    moveu=true;
+    const p=posMundo(e.clientX,e.clientY), vb=svg.viewBox.baseVal;
+    svg.setAttribute("viewBox",`${vb.x+inicio.x-p.x} ${vb.y+inicio.y-p.y} ${vb.width} ${vb.height}`);
+    posicionarInline();
+  };
+  const fim=e=>{
+    if(e.pointerId!==ponteiro) return;
+    if(moveu && e.type==="pointerup") arrastoReal=true;
+    svg.classList.remove("arrastando-bg");
+    svg.removeEventListener("pointermove",mover);
+    svg.removeEventListener("pointerup",fim);
+    svg.removeEventListener("pointercancel",fim);
+    svg.removeEventListener("lostpointercapture",fim);
+  };
+  svg.addEventListener("pointermove",mover);
+  svg.addEventListener("pointerup",fim);
+  svg.addEventListener("pointercancel",fim);
+  svg.addEventListener("lostpointercapture",fim);
 });
 let arrastagem=null;
 // true quando o usuário realmente arrastou (movimento acima do limite) — usado para
@@ -1585,8 +1607,7 @@ function init(){
   renderInicio();
   new ResizeObserver(()=>{
     if(diagramaAtual()){
-      aplicarZoomVisual();
-      posicionarInline();
+      aplicarZoomVisual("redimensionar");
     }
   }).observe(document.getElementById("canvasWrap"));
   window.addEventListener("keydown",atalhoEditor);
