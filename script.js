@@ -174,21 +174,27 @@ function temaInicial(){
 }
 
 /* ---------- Modal: novo diagrama ---------- */
-function modalAberto(){ document.getElementById("modalFundo").classList.add("aberto"); }
-function modalFechar(){ document.getElementById("modalFundo").classList.remove("aberto"); }
+const dialogoNovo=document.getElementById("modalFundo");
+function modalFechar(){ dialogoNovo.close(); }
 document.getElementById("modalFechar").addEventListener("click",modalFechar);
 document.getElementById("modalCancelar").addEventListener("click",modalFechar);
-document.getElementById("modalFundo").addEventListener("click",e=>{ if(e.target.id==="modalFundo") modalFechar(); });
-document.getElementById("btnNovoDiagrama").addEventListener("click",()=>{
-  document.getElementById("modalTitulo").textContent="Novo diagrama";
-  document.getElementById("modalNome").value="";
-  document.getElementById("modalTipo").value="casos";
-  modalAberto(); setTimeout(()=>document.getElementById("modalNome").focus(),60);
-});
+dialogoNovo.addEventListener("click",e=>{ if(e.target===dialogoNovo) modalFechar(); });
+for(const botao of document.querySelectorAll("[data-criar]")){
+  botao.addEventListener("click",()=>{
+    document.getElementById("modalNome").value="";
+    document.getElementById("modalTipo").value=botao.dataset.criar;
+    dialogoNovo.showModal();
+    document.getElementById("modalNome").focus();
+  });
+}
 document.getElementById("modalConfirmar").addEventListener("click",()=>{
   const nome=document.getElementById("modalNome").value.trim();
   const tipo=document.getElementById("modalTipo").value;
-  if(!nome){ toast("Digite um nome para o diagrama.","erro"); return; }
+  if(!nome){
+    const campo=document.getElementById("modalNome");
+    campo.value=""; campo.focus(); campo.reportValidity();
+    return;
+  }
   const diagrama={
     id:novoId("D"),
     nome,
@@ -197,10 +203,12 @@ document.getElementById("modalConfirmar").addEventListener("click",()=>{
     no:[],
     seta:[]
   };
+  document.getElementById("buscaDiagramas").value="";
   estado.diagramas.push(diagrama);
   salvarLocal();
   modalFechar();
   abrirDiagrama(diagrama.id);
+  document.getElementById("ferrSelecionar").focus();
   toast("Diagrama criado — monte seus blocos","sucesso");
 });
 document.getElementById("modalNome").addEventListener("keydown",e=>{
@@ -213,8 +221,17 @@ document.getElementById("modalNome").addEventListener("keydown",e=>{
 function renderInicio(){
   const cont=document.getElementById("listaDiagramas");
   cont.innerHTML="";
-  document.getElementById("vazioDiagramas").style.display=estado.diagramas.length?"none":"block";
-  for(const d of estado.diagramas){
+  const busca=document.getElementById("buscaDiagramas");
+  const normalizar=valor=>valor.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR");
+  const termo=normalizar(busca.value.trim());
+  const visiveis=estado.diagramas.filter(d=>normalizar(String(d.nome||"")).includes(termo)).reverse();
+  document.getElementById("grupoBusca").hidden=!estado.diagramas.length;
+  document.getElementById("btnExportarJSON").disabled=!estado.diagramas.length;
+  const vazio=document.getElementById("vazioDiagramas");
+  vazio.hidden=visiveis.length>0;
+  vazio.textContent=estado.diagramas.length ? "Nenhum diagrama com esse nome." :
+    "Seus diagramas ficam salvos neste navegador. Escolha um tipo acima para criar o primeiro.";
+  for(const d of visiveis){
     const cfg=TIPOS[d.tipo]||{nome:d.tipo};
     const card=document.createElement("div");
     card.className="card-diag";
@@ -223,7 +240,7 @@ function renderInicio(){
         <h3>${esc(d.nome)}</h3>
         <span class="pill">${esc(cfg.nome)}</span>
       </div>
-      <p class="meta">${d.no.length} bloco(s) · ${d.seta.length} conexão(ões) · ${esc(d.data||"—")}</p>
+      <p class="meta">${d.no.length} ${d.no.length===1?"bloco":"blocos"} · ${d.seta.length} ${d.seta.length===1?"conexão":"conexões"} · ${esc(d.data||"—")}</p>
       <div class="acoes">
         <button class="btn btn-primario" type="button" data-acao="abrir">Abrir</button>
         <button class="btn btn-perigo" type="button" data-acao="excluir">Excluir</button>
@@ -233,6 +250,7 @@ function renderInicio(){
     cont.appendChild(card);
   }
 }
+document.getElementById("buscaDiagramas").addEventListener("input",renderInicio);
 function excluirDiagrama(id){
   const d=estado.diagramas.find(x=>x.id===id);
   if(!d) return;
@@ -262,6 +280,14 @@ function voltarInicio(){
   document.getElementById("telaInicio").classList.add("ativa");
   renderInicio();
 }
+const alternarPaleta=document.getElementById("alternarPaleta");
+alternarPaleta.addEventListener("click",()=>{
+  const painel=document.getElementById("painelBlocos");
+  painel.hidden=!painel.hidden;
+  alternarPaleta.setAttribute("aria-expanded",String(!painel.hidden));
+  document.getElementById("layoutEditor").classList.toggle("sem-paleta",painel.hidden);
+  render();
+});
 document.getElementById("btnVoltar").addEventListener("click",voltarInicio);
 // Botão "Editar texto": edição inline do bloco selecionado (campo sobre a
 // caixa, onde o usuário digita); para seta, mantém o prompt de rótulo
@@ -907,7 +933,9 @@ function render(){
     }
   }
   const dica=document.getElementById("dicaCanvas");
-  dica.style.display=d.no.length===0?"block":"none";
+  dica.hidden=d.no.length>0;
+  if(!d.no.length) dica.textContent=document.getElementById("painelBlocos").hidden ?
+    "Abra Blocos para adicionar a primeira forma." : "Escolha um bloco na paleta para começar.";
   const info=document.getElementById("infoSelecionado");
   const quantidade=estado.selecionados.size;
   document.getElementById("acoesSelecao").hidden=!quantidade && !estado.setaSelecionada;
@@ -1403,7 +1431,12 @@ document.getElementById("arquivoJSON").addEventListener("change",e=>{
   leitor.onload=()=>{
     try{
       const obj=JSON.parse(leitor.result);
-      if(!Array.isArray(obj)) throw new Error("estrutura inválida");
+      if(!Array.isArray(obj) || obj.some(d=>!d || !TIPOS[d.tipo] || !Array.isArray(d.no) || !Array.isArray(d.seta))) throw new Error("estrutura inválida");
+      if(estado.diagramas.length && !confirm("Substituir os diagramas deste navegador pelos do arquivo JSON?")){
+        e.target.value="";
+        return;
+      }
+      document.getElementById("buscaDiagramas").value="";
       estado.diagramas=obj;
       estado.diagramaAtualId=null;
       salvarLocal(); renderInicio();
