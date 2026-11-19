@@ -11,6 +11,7 @@ const CHAVE_TEMA="editor-diagramas-tema";
 
 /* ---------- Estado central ---------- */
 const estado={
+  projetos:[],
   diagramas:[],           // lista de diagramas
   diagramaAtualId:null,   // id do diagrama aberto no editor
   ferramenta:"selecionar", // "selecionar" | "conectar"
@@ -18,6 +19,7 @@ const estado={
   selecionados:new Set(),
   setaSelecionada:null,
   origemConexao:null,
+  ancoraOrigem:null,
   zoom:1,
   _idSeq:1
 };
@@ -82,12 +84,12 @@ function formaDoTipo(tipo){
 function formaSVG(tipo,w,h){
   switch(formaDoTipo(tipo)){
     case "oval":
-      return `<circle class="forma-pre forma-oval" cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)/2-2}"/>
-              <text class="no-texto" x="${w/2}" y="${h/2+5}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Início</text>`;
-    case "alvo":
-      return `<circle class="forma-pre forma-alvo-ext" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-3}"/>
-              <circle class="forma-pre forma-alvo-int" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)/2-11}" stroke-width="3"/>
-              <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="12" font-weight="700">Fim</text>`;
+      return `<circle class="forma-pre forma-oval" cx="${w/2}" cy="${h/2}" r="${h/2-recuoCircular.oval}"/>`;
+    case "alvo":{
+      const raio=h/2-recuoCircular.alvo;
+      return `<circle class="forma-pre forma-alvo-ext" cx="${w/2}" cy="${h/2}" r="${raio}"/>
+              <circle class="forma-pre forma-alvo-int" cx="${w/2}" cy="${h/2}" r="${raio-8}" stroke-width="3"/>`;
+    }
     case "barra":
       return `<rect class="forma-pre forma-barra" x="2" y="4" width="${w-4}" height="${Math.min(18,h-8)}" rx="4" stroke-width="2"/>
               <text class="no-texto" x="${w/2}" y="${h+18}" text-anchor="middle" font-size="11.5" font-weight="700">fork / join</text>`;
@@ -136,6 +138,97 @@ function dimsPadrao(tipo){
   }
 }
 
+const formasDeCaixa=new Set(["retângulo","retângulo-vaz","elipse","losango","limite","nota","oval","alvo"]);
+const recuoCircular={oval:2,alvo:3};
+const tamanhoMinimo={w:56,h:40,diametro:40};
+
+// Mantém a margem horizontal usada nos pontos de início dos diagramas existentes.
+function dimensoesCirculo(tipo,diametro){
+  const base=dimsPadrao(tipo);
+  const h=limitarTamanho("diametro",diametro)+2*recuoCircular[formaDoTipo(tipo)];
+  return {w:h+base.w-base.h,h};
+}
+function textoDoBloco(no){
+  if(no.texto) return no.texto;
+  const forma=formaDoTipo(no.tipo);
+  if(forma==="oval") return "Início";
+  if(forma==="alvo") return "Fim";
+  return "";
+}
+function limitarTamanho(eixo,valor){
+  return Math.min(5000,Math.max(tamanhoMinimo[eixo],Math.round(valor)));
+}
+let gestoTamanho=null;
+
+function dimensoesNo(no){
+  if(gestoTamanho?.no===no) return gestoTamanho.atual;
+  const base=dimsPadrao(no.tipo);
+  const forma=formaDoTipo(no.tipo);
+  if(recuoCircular[forma]) return Number.isFinite(no.diametro) ? dimensoesCirculo(no.tipo,no.diametro) : base;
+  if(!formasDeCaixa.has(forma)) return base;
+  for(const eixo of ["w","h"]){
+    if(Number.isFinite(no[eixo])) base[eixo]=limitarTamanho(eixo,no[eixo]);
+  }
+  return base;
+}
+
+// Mede as palavras com a mesma fonte usada na tela e no SVG exportado.
+const medidaRotulo=document.createElement("canvas").getContext("2d");
+medidaRotulo.font='16px "Segoe UI",system-ui,sans-serif';
+const segmentosRotulo=typeof Intl.Segmenter==="function" ? new Intl.Segmenter("pt",{granularity:"grapheme"}) : null;
+function quebrarRotulo(texto,largura){
+  const linhas=[];
+  for(const paragrafo of texto.split(/\r?\n/)){
+    let linha="";
+    for(const palavra of paragrafo.trim().split(/\s+/)){
+      const proposta=linha ? linha+" "+palavra : palavra;
+      if(medidaRotulo.measureText(proposta).width<=largura){linha=proposta;continue;}
+      if(linha) linhas.push(linha);
+      linha=palavra;
+      if(medidaRotulo.measureText(palavra).width<=largura) continue;
+      linha="";
+      const letras=segmentosRotulo ? Array.from(segmentosRotulo.segment(palavra),g=>g.segment) : [...palavra];
+      for(const letra of letras){
+        if(linha && medidaRotulo.measureText(linha+letra).width>largura){linhas.push(linha);linha="";}
+        linha+=letra;
+      }
+    }
+    linhas.push(linha);
+  }
+  return linhas;
+}
+
+const rotulosPorNo=new WeakMap();
+function comporRotulo(no,w,h){
+  const anterior=rotulosPorNo.get(no);
+  if(anterior?.w===w && anterior.h===h && anterior.texto===no.texto) return anterior.layout;
+  const forma=formaDoTipo(no.tipo);
+  const esquerda=forma==="limite" || forma==="nota";
+  let largura=w-24, altura=h-16;
+  // Retângulos inscritos deixam todos os cantos do texto dentro das bordas curvas ou inclinadas.
+  if(forma==="elipse"){largura=(w-12)*0.78;altura=(h-12)*0.60;}
+  if(recuoCircular[forma]){
+    // No fim, o rótulo fica dentro do círculo interno, com folga para seu traço.
+    const livre=h-2*recuoCircular[forma]-(forma==="alvo"?20:4);
+    largura=livre*0.78; altura=livre*0.60;
+  }
+  if(forma==="losango"){largura=(w-10)*0.54;altura=(h-10)*0.46;}
+  if(esquerda) altura=h-28;
+  let fonte=16,linhas;
+  for(;;){
+    linhas=quebrarRotulo(textoDoBloco(no),largura*16/fonte);
+    const alturaTexto=linhas.length*fonte*1.25;
+    const maior=linhas.reduce((max,l)=>Math.max(max,medidaRotulo.measureText(l).width*fonte/16),1);
+    if(alturaTexto<=altura && maior<=largura) break;
+    fonte*=Math.min(0.91,largura/maior,Math.sqrt(altura/alturaTexto));
+  }
+  const x=esquerda?12:w/2;
+  const y=(esquerda?16:(h-linhas.length*fonte*1.25)/2)+fonte;
+  const layout={linhas,fonte,x,y,anchor:esquerda?"start":"middle"};
+  rotulosPorNo.set(no,{w,h,texto:no.texto,layout});
+  return layout;
+}
+
 /* ---------- Utilitários ---------- */
 function novoId(prefixo){ return (prefixo||"N")+(estado._idSeq++).toString(36)+Math.random().toString(36).slice(2,5); }
 function esc(s){
@@ -151,15 +244,24 @@ function toast(msg,tipo){
 function diagramaAtual(){ return estado.diagramas.find(d=>d.id===estado.diagramaAtualId); }
 
 /* ---------- Persistência ---------- */
-function salvarLocal(){
-  try{ localStorage.setItem(CHAVE_SAVE,JSON.stringify(estado.diagramas)); }catch(e){}
+function salvarLocal(grupo=null){
+  registrarEdicao(grupo);
+  try{
+    localStorage.setItem(CHAVE_SAVE,JSON.stringify(dadosColecao()));
+    return true;
+  }catch(e){
+    toast("Não foi possível salvar os dados neste navegador.","erro");
+    return false;
+  }
 }
 function carregarLocal(){
   try{
     const dados=localStorage.getItem(CHAVE_SAVE);
     if(dados){
       const obj=JSON.parse(dados);
-      if(Array.isArray(obj)) estado.diagramas=obj;
+      const colecao=lerColecao(obj);
+      estado.diagramas=colecao.diagramas;
+      estado.projetos=colecao.projetos;
     }
   }catch(e){}
 }
@@ -173,21 +275,27 @@ function temaInicial(){
 }
 
 /* ---------- Modal: novo diagrama ---------- */
-function modalAberto(){ document.getElementById("modalFundo").classList.add("aberto"); }
-function modalFechar(){ document.getElementById("modalFundo").classList.remove("aberto"); }
+const dialogoNovo=document.getElementById("modalFundo");
+function modalFechar(){ dialogoNovo.close(); }
 document.getElementById("modalFechar").addEventListener("click",modalFechar);
 document.getElementById("modalCancelar").addEventListener("click",modalFechar);
-document.getElementById("modalFundo").addEventListener("click",e=>{ if(e.target.id==="modalFundo") modalFechar(); });
-document.getElementById("btnNovoDiagrama").addEventListener("click",()=>{
-  document.getElementById("modalTitulo").textContent="Novo diagrama";
-  document.getElementById("modalNome").value="";
-  document.getElementById("modalTipo").value="casos";
-  modalAberto(); setTimeout(()=>document.getElementById("modalNome").focus(),60);
-});
+dialogoNovo.addEventListener("click",e=>{ if(e.target===dialogoNovo) modalFechar(); });
+for(const botao of document.querySelectorAll("[data-criar]")){
+  botao.addEventListener("click",()=>{
+    document.getElementById("modalNome").value="";
+    document.getElementById("modalTipo").value=botao.dataset.criar;
+    dialogoNovo.showModal();
+    document.getElementById("modalNome").focus();
+  });
+}
 document.getElementById("modalConfirmar").addEventListener("click",()=>{
   const nome=document.getElementById("modalNome").value.trim();
   const tipo=document.getElementById("modalTipo").value;
-  if(!nome){ toast("Digite um nome para o diagrama.","erro"); return; }
+  if(!nome){
+    const campo=document.getElementById("modalNome");
+    campo.value=""; campo.focus(); campo.reportValidity();
+    return;
+  }
   const diagrama={
     id:novoId("D"),
     nome,
@@ -196,10 +304,12 @@ document.getElementById("modalConfirmar").addEventListener("click",()=>{
     no:[],
     seta:[]
   };
+  document.getElementById("buscaDiagramas").value="";
   estado.diagramas.push(diagrama);
   salvarLocal();
   modalFechar();
   abrirDiagrama(diagrama.id);
+  document.getElementById("ferrSelecionar").focus();
   toast("Diagrama criado — monte seus blocos","sucesso");
 });
 document.getElementById("modalNome").addEventListener("keydown",e=>{
@@ -212,8 +322,18 @@ document.getElementById("modalNome").addEventListener("keydown",e=>{
 function renderInicio(){
   const cont=document.getElementById("listaDiagramas");
   cont.innerHTML="";
-  document.getElementById("vazioDiagramas").style.display=estado.diagramas.length?"none":"block";
-  for(const d of estado.diagramas){
+  const busca=document.getElementById("buscaDiagramas");
+  const normalizar=valor=>valor.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR");
+  const termo=normalizar(busca.value.trim());
+  const visiveis=estado.diagramas.filter(d=>normalizar(String(d.nome||"")).includes(termo)).reverse();
+  document.getElementById("grupoBusca").hidden=!estado.diagramas.length;
+  document.getElementById("btnExportarJSON").disabled=!estado.diagramas.length && !estado.projetos.length;
+  renderProjetos();
+  const vazio=document.getElementById("vazioDiagramas");
+  vazio.hidden=visiveis.length>0;
+  vazio.textContent=estado.diagramas.length ? "Nenhum diagrama com esse nome." :
+    "Seus diagramas ficam salvos neste navegador. Escolha um tipo acima para criar o primeiro.";
+  for(const d of visiveis){
     const cfg=TIPOS[d.tipo]||{nome:d.tipo};
     const card=document.createElement("div");
     card.className="card-diag";
@@ -222,7 +342,7 @@ function renderInicio(){
         <h3>${esc(d.nome)}</h3>
         <span class="pill">${esc(cfg.nome)}</span>
       </div>
-      <p class="meta">${d.no.length} bloco(s) · ${d.seta.length} conexão(ões) · ${esc(d.data||"—")}</p>
+      <p class="meta">${d.no.length} ${d.no.length===1?"bloco":"blocos"} · ${d.seta.length} ${d.seta.length===1?"conexão":"conexões"} · ${esc(d.data||"—")}</p>
       <div class="acoes">
         <button class="btn btn-primario" type="button" data-acao="abrir">Abrir</button>
         <button class="btn btn-perigo" type="button" data-acao="excluir">Excluir</button>
@@ -232,11 +352,13 @@ function renderInicio(){
     cont.appendChild(card);
   }
 }
+document.getElementById("buscaDiagramas").addEventListener("input",renderInicio);
 function excluirDiagrama(id){
   const d=estado.diagramas.find(x=>x.id===id);
   if(!d) return;
   if(!confirm(`Excluir o diagrama "${d.nome}" e todo o seu conteúdo?`)) return;
   estado.diagramas=estado.diagramas.filter(x=>x.id!==id);
+  for(const p of estado.projetos) p.diagramas=p.diagramas.filter(item=>item!==id);
   if(estado.diagramaAtualId===id) estado.diagramaAtualId=null;
   salvarLocal(); renderInicio();
   toast("Diagrama excluído","sucesso");
@@ -252,15 +374,25 @@ function abrirDiagrama(id){
   document.getElementById("telaInicio").classList.remove("ativa");
   document.getElementById("telaEditor").classList.add("ativa");
   renderPaleta(); renderConexoes(); render();
-  aplicarZoomVisual();
+  iniciarHistorico(d);
+  aplicarZoomVisual("abrir");
 }
 function voltarInicio(){
+  historico=null;
   estado.diagramaAtualId=null;
   estado.selecionados.clear(); estado.setaSelecionada=null; estado.origemConexao=null;
   document.getElementById("telaEditor").classList.remove("ativa");
   document.getElementById("telaInicio").classList.add("ativa");
   renderInicio();
 }
+const alternarPaleta=document.getElementById("alternarPaleta");
+alternarPaleta.addEventListener("click",()=>{
+  const painel=document.getElementById("painelBlocos");
+  painel.hidden=!painel.hidden;
+  alternarPaleta.setAttribute("aria-expanded",String(!painel.hidden));
+  document.getElementById("layoutEditor").classList.toggle("sem-paleta",painel.hidden);
+  render();
+});
 document.getElementById("btnVoltar").addEventListener("click",voltarInicio);
 // Botão "Editar texto": edição inline do bloco selecionado (campo sobre a
 // caixa, onde o usuário digita); para seta, mantém o prompt de rótulo
@@ -354,12 +486,22 @@ const camadaNos=document.getElementById("camadaNos");
 const camadaConexoes=document.getElementById("camadaConexoes");
 const camadaSetasFundo=document.getElementById("camadaSetasFundo");
 
-function aplicarZoomVisual(){
-  const wrap=document.getElementById("canvasWrap");
-  const r=wrap.getBoundingClientRect();
+function aplicarZoomVisual(motivo="zoom"){
+  const r=svg.getBoundingClientRect();
+  if(!r.width || !r.height) return;
   const w=r.width/estado.zoom, h=r.height/estado.zoom;
-  svg.setAttribute("viewBox",`${-w/2} ${-h/2} ${w} ${h}`);
+  const vb=svg.viewBox.baseVal;
+  let x=vb.x,y=vb.y;
+  if(motivo==="abrir" || !vb.width || !vb.height){
+    x=-w/2; y=-h/2;
+  }else if(motivo==="zoom"){
+    // Aproxima ou afasta em torno do centro que o usuário está vendo.
+    x+=(vb.width-w)/2; y+=(vb.height-h)/2;
+  }
+  // Quando um painel abre ou fecha, só muda a extensão da área visível.
+  svg.setAttribute("viewBox",`${x} ${y} ${w} ${h}`);
   document.getElementById("zoomContador").textContent=Math.round(estado.zoom*100)+"%";
+  posicionarInline();
 }
 function posMundo(clientX,clientY){
   // conversão de coordenadas de tela para o plano do SVG usando getBoundingClientRect
@@ -370,9 +512,7 @@ function posMundo(clientX,clientY){
   const w=vb.width||r.width, h=vb.height||r.height;
   return {x:(clientX-r.left)/r.width*w+vb.x, y:(clientY-r.top)/r.height*h+vb.y};
 }
-/* geometria do ator (bonequinho): coordenadas relativas ao grupo do bloco.
-   o retângulo invisível que envolve a figura vai de x0 a x1 (pontas dos braços)
-   e de y0 a y1 (topo da cabeça até a base das pernas) */
+/* Geometria do desenho do ator em coordenadas locais. */
 function geomAtor(w,h){
   const headR=Math.min(15,(h-40)/4);
   const headY=headR+9;
@@ -381,49 +521,71 @@ function geomAtor(w,h){
   const armY=bodyTop+(bodyBot-bodyTop)*0.45;
   const armDx=Math.min(26,w/2-10);
   const legBot=h-4;
-  return {headR,headY,bodyTop,bodyBot,armY,armDx,legBot,x0:w/2-armDx,y0:headY-headR,x1:w/2+armDx,y1:legBot};
+  return {headR,headY,bodyTop,bodyBot,armY,armDx,legBot};
 }
-function ancoras(no,grupo,w,h){
-  // A primeira forma é o contorno externo. Textos e áreas de clique ficam de fora.
-  const borda=grupo.querySelector(".forma-pre").getBBox();
-  let esquerda=borda.x, direita=borda.x+borda.width;
-  let topo=borda.y, inferior=borda.y+borda.height;
-  let meioY=(topo+inferior)/2;
-  if(no.tipo==="ator"){
-    const g=geomAtor(w,h);
-    esquerda=g.x0; direita=g.x1; topo=g.y0; inferior=g.y1; meioY=g.armY;
-  }
-  const cx=no.x+(esquerda+direita)/2, cy=no.y+meioY;
+function areaDoAtor(w,h,texto){
+  const nome=texto.getBBox();
+  const x=Math.min(0,nome.width ? nome.x-6 : 0);
+  const direita=Math.max(w,nome.width ? nome.x+nome.width+6 : w);
+  const inferior=Math.max(h,nome.height ? nome.y+nome.height+5 : h);
+  return {x,y:0,width:direita-x,height:inferior};
+}
+function ancoras(no,borda){
+  const esquerda=borda.x, direita=borda.x+borda.width;
+  const topo=borda.y, inferior=borda.y+borda.height;
+  const cx=no.x+(esquerda+direita)/2, cy=no.y+(topo+inferior)/2;
   return {
     topo:{x:cx,y:no.y+topo}, direita:{x:no.x+direita,y:cy},
     inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
   };
 }
-/* pontos de conexão sem depender do DOM (usa o box de dimsPadrao + geomAtor).
-   Usado no bbox de exportação, onde não há grupo renderizado para consultar getBBox */
-function ancorasDados(no){
-  const {w,h}=dimsPadrao(no.tipo);
-  let esquerda=0, direita=w, topo=0, inferior=h, meioY=h/2;
-  if(no.tipo==="ator"){
-    const g=geomAtor(w,h);
-    esquerda=g.x0; direita=g.x1; topo=g.y0; inferior=g.y1; meioY=g.armY;
+const ladosAtividade=["topo","direita","inferior","esquerda"];
+
+// Preserva as âncoras salvas e atribui as livres mais próximas às setas antigas.
+function conexoesAtividade(d,pontosPorNo,gravar=true){
+  const uso=new Map(), caminhos=new Map();
+  let alterado=false;
+  for(const id of pontosPorNo.keys()) uso.set(id,{topo:0,direita:0,inferior:0,esquerda:0});
+  for(const s of d.seta){
+    if(ladosAtividade.includes(s.ancoraDe)) uso.get(s.de)[s.ancoraDe]++;
+    if(ladosAtividade.includes(s.ancoraPara)) uso.get(s.para)[s.ancoraPara]++;
   }
-  const cx=no.x+(esquerda+direita)/2, cy=no.y+meioY;
-  return {
-    topo:{x:cx,y:no.y+topo}, direita:{x:no.x+direita,y:cy},
-    inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
-  };
+  function candidatos(id,fixo){
+    if(ladosAtividade.includes(fixo)) return [fixo];
+    const contagem=uso.get(id);
+    // Blocos antigos acima do limite mantêm as conexões, dividindo os pontos.
+    const minimo=Math.min(...Object.values(contagem));
+    return ladosAtividade.filter(lado=>contagem[lado]===minimo);
+  }
+  for(const s of d.seta){
+    const aa=pontosPorNo.get(s.de), bb=pontosPorNo.get(s.para);
+    const destinos=candidatos(s.para,s.ancoraPara);
+    let menor=Infinity, origem, destino;
+    for(const a of candidatos(s.de,s.ancoraDe)){
+      for(const b of destinos){
+        const distancia=Math.hypot(aa[a].x-bb[b].x,aa[a].y-bb[b].y);
+        if(distancia<menor){menor=distancia; origem=a; destino=b;}
+      }
+    }
+    if(s.ancoraDe!==origem){s.ancoraDe=origem; uso.get(s.de)[origem]++; alterado=true;}
+    if(s.ancoraPara!==destino){s.ancoraPara=destino; uso.get(s.para)[destino]++; alterado=true;}
+    caminhos.set(s.id,{p1:aa[origem],p2:bb[destino]});
+  }
+  if(alterado && gravar) salvarLocal();
+  return caminhos;
 }
-function parAncoras(aa,ba){
-  const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
-              ["topo","direita"],["direita","topo"],["inferior","esquerda"],["esquerda","inferior"]];
-  let melhor=null, menor=Infinity;
-  for(const [x,y] of cand){
-    const p=aa[x], q=ba[y];
-    const d=Math.hypot(p.x-q.x,p.y-q.y);
-    if(d<menor){menor=d;melhor={origem:x,destino:y,p1:p,p2:q};}
+
+function pontoDisponivel(d,id,lado,ignorar=null){
+  const ligadas=d.seta.filter(s=>s!==ignorar && (s.de===id || s.para===id));
+  if(ligadas.length>=4){
+    toast("Este bloco já tem quatro conexões.","erro");
+    return false;
   }
-  return melhor;
+  if(lado && ligadas.some(s=>(s.de===id?s.ancoraDe:s.ancoraPara)===lado)){
+    toast("Esse ponto já está conectado. Escolha outro ponto azul.","erro");
+    return false;
+  }
+  return true;
 }
 /* Centro da caixa de âncoras de um nó (centro geométrico da caixa delimitadora).
    Os pontos de âncora já estão em coordenadas mundiais, então o centro é a média. */
@@ -437,7 +599,7 @@ function centroAncora(aa){
    na direção de (tx,ty) com a caixa delimitadora. Isso dá um ponto de encaixe em
    QUALQUER lugar do perímetro (não só os 4 pontos médios dos lados), deixando o
    diagrama menos rígido e com muito mais possibilidades de encaixe. */
-function pontoFrontal(aa,no,tx,ty){
+function pontoFrontal(aa,tx,ty){
   const c=centroAncora(aa);
   const dx=tx-c.x, dy=ty-c.y;
   if(Math.abs(dx)<0.001&&Math.abs(dy)<0.001) return c;
@@ -451,16 +613,12 @@ function pontoFrontal(aa,no,tx,ty){
 }
 /* Par de pontos de encaixe: ponto de saída de A na direção de B, e ponto de
    entrada de B na direção de A — os dois pontos "enfrentam" um ao outro. */
-function parEncaixe(aa,a,bb,b){
+function parEncaixe(aa,bb){
   const ca=centroAncora(aa), cb=centroAncora(bb);
   return {
-    p1:pontoFrontal(aa,a,cb.x,cb.y),
-    p2:pontoFrontal(bb,b,ca.x,ca.y)
+    p1:pontoFrontal(aa,cb.x,cb.y),
+    p2:pontoFrontal(bb,ca.x,ca.y)
   };
-}
-/* Caminho reto entre dois pontos de encaixe — mais natural que o caminho em L */
-function caminhoReto(p1,p2){
-  return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
 }
 /* Cabeça (ponta) da seta como triângulo SÓLIDO (não vazada): a ponta fica em p2 e
     a base atrás, na direção de p1->p2. Desenhada numa camada ABAIXO das linhas das
@@ -497,70 +655,303 @@ function pontoMeio(p1,p2){
   if(meio<=ady) return {x:p1.x, y:p1.y+(dy>0?meio:-meio)};
   return {x:p1.x+(dx>0?(meio-ady):-(meio-ady)), y:p2.y};
 }
-/* Distribui os pontos de partida/chegada das setas: cada seta usa o ponto de
-   encaixe (frente) na borda do bloco, e quando várias setas saem do mesmo bloco
-   são ordenadas por ângulo e deslocadas perpendicularmente (fan-out), além do
-   afastamento da borda — as setas não ficam sobrepostas entre si nem coladas no
-   contorno, e o encaixe pode acontecer em qualquer ponto do perímetro. */
-function calcularFanout(d,pontosPorNo){
-  const SPACING=10, GAP=4;
-  const pares=[];
-  for(const s of d.seta){
-    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
-    if(!a||!b) continue;
-    const aa=pontosPorNo.get(a.id), bb=pontosPorNo.get(b.id);
-    if(!aa||!bb) continue;
-    pares.push({s,a,b,aa,bb,par:parEncaixe(aa,a,bb,b)});
-  }
-  // agrupar por nó de origem e ordenar por ângulo para o fan-out angular
-  const porOrigem=new Map();
-  for(const item of pares){
-    const arr=porOrigem.get(item.a.id)||[];
-    arr.push(item);
-    porOrigem.set(item.a.id,arr);
-  }
-  for(const [id,arr] of porOrigem){
-    arr.sort((x,y)=>{
-      const ca=centroAncora(x.aa);
-      const cb=centroAncora(y.aa);
-      return Math.atan2(x.par.p1.y-ca.y,x.par.p1.x-ca.x)-
-             Math.atan2(y.par.p1.y-cb.y,y.par.p1.x-cb.x);
-    });
-    arr.forEach((item,i)=>item.iO=i);
-  }
-  const out=new Map();
-  for(const {s,a,b,aa,bb,par,iO} of pares){
-    const nO=(porOrigem.get(a.id)||[]).length||1;
-    const off=(iO-(nO-1)/2)*SPACING;
-    const dx=par.p2.x-par.p1.x, dy=par.p2.y-par.p1.y;
-    const len=Math.hypot(dx,dy)||1;
-    const px=-dy/len, py=dx/len; // perpendicular à direção da seta
-    out.set(s.id,{
-      p1:afastarEncaixe(par.p1,aa,a,GAP,px*off,py*off),
-      p2:afastarEncaixe(par.p2,bb,b,GAP,px*off,py*off)
-    });
-  }
-  return out;
+/* Cada lado do bloco distribui as pontas que chegam e saem dele.
+   A ordem acompanha a posição do outro bloco para evitar cruzamentos locais. */
+function bordaDoAtor(aa,p){
+  const x=Math.max(aa.esquerda.x,Math.min(aa.direita.x,p.x));
+  const y=Math.max(aa.topo.y,Math.min(aa.inferior.y,p.y));
+  const lados=[{x:aa.esquerda.x,y},{x:aa.direita.x,y},{x,y:aa.topo.y},{x,y:aa.inferior.y}];
+  return lados.reduce((a,b)=>Math.hypot(b.x-p.x,b.y-p.y)<Math.hypot(a.x-p.x,a.y-p.y)?b:a);
 }
-function afastarEncaixe(p,aa,no,GAP,dx,dy){
-  const c=centroAncora(aa);
-  let nx=p.x-c.x, ny=p.y-c.y;
-  const nl=Math.hypot(nx,ny)||1;
-  nx/=nl; ny/=nl; // normal de saída (de centro até o ponto de encaixe)
-  return {x:p.x+nx*GAP+dx, y:p.y+ny*GAP+dy};
+function calcularFanout(d,pontosPorNo){
+  const atores=new Map(d.no.filter(no=>no.tipo==="ator").map(no=>[no.id,no]));
+  const lados=new Map(), pares=new Map();
+  function registrar(id,ponto,alvo,seta){
+    const aa=pontosPorNo.get(id);
+    const ator=atores.get(id);
+    const manual=id===seta.de ? seta.pontoDe : seta.pontoPara;
+    if(ator && manual){
+      Object.assign(ponto,bordaDoAtor(aa,{x:ator.x+manual.x,y:ator.y+manual.y}));
+    }
+    const ladosDoNo=lados.get(id)||new Map();
+    lados.set(id,ladosDoNo);
+    const bordas=[
+      ["esquerda","x",-1],["direita","x",1],["topo","y",-1],["inferior","y",1]
+    ];
+    const [lado,normal,sinal]=bordas.reduce((melhor,atual)=>{
+      const distancia=([nome,eixo])=>Math.abs(ponto[eixo]-aa[nome][eixo]);
+      return distancia(atual)<distancia(melhor)?atual:melhor;
+    });
+    const eixo=normal==="x"?"y":"x";
+    if(!ladosDoNo.has(lado)){
+      const min=eixo==="y"?aa.topo.y:aa.esquerda.x;
+      const max=eixo==="y"?aa.inferior.y:aa.direita.x;
+      ladosDoNo.set(lado,{eixo,min,max,pontas:[]});
+    }
+    if(!ator) ponto[normal]+=4*sinal;
+    // Ordena as setas de ida e volta pela perpendicular ao sentido da viagem.
+    // Na borda vertical distribuímos em y; na horizontal, em x (sinal oposto).
+    const sentido=id===seta.de ? sinal : -sinal;
+    const faixa=normal==="x" ? sentido : -sentido;
+    ladosDoNo.get(lado).pontas.push({ponto,alvo:alvo[eixo],faixa,id:seta.id});
+  }
+  for(const s of d.seta){
+    const aa=pontosPorNo.get(s.de), bb=pontosPorNo.get(s.para);
+    if(!aa||!bb) continue;
+    const a=centroAncora(aa), b=centroAncora(bb);
+    const {p1,p2}=parEncaixe(aa,bb);
+    registrar(s.de,p1,b,s); registrar(s.para,p2,a,s);
+    pares.set(s.id,{p1,p2});
+  }
+  for(const grupos of lados.values()){
+    for(const {eixo,min,max,pontas} of grupos.values()){
+      if(pontas.length<2) continue;
+      pontas.sort((a,b)=>a.ponto[eixo]-b.ponto[eixo] || a.alvo-b.alvo || a.faixa-b.faixa || String(a.id).localeCompare(String(b.id)));
+      const margem=Math.min(6,(max-min)/4);
+      const passo=Math.min(22,(max-min-2*margem)/(pontas.length-1));
+      let anterior=min+margem-passo;
+      pontas.forEach(({ponto},i)=>{
+        const limite=max-margem-(pontas.length-1-i)*passo;
+        ponto[eixo]=Math.min(limite,Math.max(anterior+passo,ponto[eixo]));
+        anterior=ponto[eixo];
+      });
+    }
+  }
+  return pares;
 }
 
-function render(){
-  const d=diagramaAtual(); if(!d) return;
+/* Duas marcas próximas podem ser mais largas que o espaço entre as setas.
+   Procura uma posição livre ao longo da própria conexão, começando pelo centro. */
+function posicionarRotulo(tracado,largura,comTexto,ocupados,condicao=false){
+  let melhor, menor=Infinity;
+  for(const t of [.5,.35,.65,.2,.8]){
+    let {x,y}=tracado.ponto(t);
+    if(condicao){
+      // Mantém a condição acima da tangente local ou ao lado de uma saída vertical.
+      const a=tracado.ponto(t-.001),b=tracado.ponto(t+.001);
+      const dx=b.x-a.x,dy=b.y-a.y,comprimento=Math.hypot(dx,dy);
+      const sentido=dx===0 ? Math.sign(dy)||1 : Math.sign(dx);
+      const nx=comprimento ? sentido*dy/comprimento : 0;
+      const ny=comprimento ? -sentido*dx/comprimento : -1;
+      const distancia=Math.abs(nx)*largura/2+Math.abs(ny)*9+5;
+      x+=nx*distancia; y+=ny*distancia;
+    }
+    const caixa={x1:x-largura/2-3,x2:x+largura/2+3,y1:y-(comTexto?32:10),y2:y+10};
+    let area=0;
+    for(const c of ocupados){
+      area+=Math.max(0,Math.min(c.x2,caixa.x2)-Math.max(c.x1,caixa.x1))*
+            Math.max(0,Math.min(c.y2,caixa.y2)-Math.max(c.y1,caixa.y1));
+    }
+    if(area<menor){melhor={x,y,caixa};menor=area;}
+    if(area===0) break;
+  }
+  ocupados.push(melhor.caixa);
+  return melhor;
+}
+
+// Mede o contorno visível em coordenadas locais uma vez considerando o tamanho atual do bloco.
+const contornosPorNo=new WeakMap();
+function medirContorno(no,grupo){
+  const {w,h}=dimensoesNo(no);
+  const anterior=contornosPorNo.get(no);
+  if(anterior?.w===w && anterior.h===h) return;
+  const formas=[grupo.querySelector(".forma-pre")];
+  const contornos=Array.from(formas,forma=>{
+    const comprimento=forma.getTotalLength();
+    const n=Math.max(1,Math.ceil(comprimento/3));
+    return Array.from({length:n+1},(_,i)=>forma.getPointAtLength(comprimento*i/n));
+  });
+  contornosPorNo.set(no,{w,h,contornos});
+}
+function encaixeNoContorno(no,alvo){
+  if(no.tipo==="ator") return bordaDoAtor(ancorasRender.get(no.id),alvo);
+  const x=alvo.x-no.x,y=alvo.y-no.y;
+  let melhor,menor=Infinity;
+  for(const parte of contornosPorNo.get(no).contornos){
+    for(let i=1;i<parte.length;i++){
+      const a=parte[i-1],b=parte[i],dx=b.x-a.x,dy=b.y-a.y;
+      const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+      const px=a.x+t*dx,py=a.y+t*dy,dist=(px-x)**2+(py-y)**2;
+      if(dist<menor){menor=dist;melhor={x:no.x+px,y:no.y+py};}
+    }
+  }
+  return melhor;
+}
+// Pontas antigas guardavam coordenadas locais relativas ao tamanho padrão.
+function extremidadeNo(no,manual,automatica){
+  if(!manual) return encaixeNoContorno(no,automatica);
+  const {w,h}=dimensoesNo(no);
+  const base=dimsPadrao(no.tipo);
+  if(recuoCircular[formaDoTipo(no.tipo)]){
+    const dx=manual.x-(manual.w||base.w)/2, dy=manual.y-(manual.h||base.h)/2;
+    const escala=(h/2-recuoCircular[formaDoTipo(no.tipo)])/(Math.hypot(dx,dy)||1);
+    return {x:no.x+w/2+dx*escala,y:no.y+h/2+dy*escala};
+  }
+  return encaixeNoContorno(no,{
+    x:no.x+manual.x*w/(manual.w||base.w),
+    y:no.y+manual.y*h/(manual.h||base.h)
+  });
+}
+function interpolar(a,b,t){
+  return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};
+}
+// Spline interpolante: cada ponto arrastado fica exatamente sobre a curva.
+function tracadoLinha(p1,p2,dobras){
+  const pontos=[p1,...dobras,p2], trechos=[];
+  let caminho=`M ${p1.x} ${p1.y}`;
+  for(let i=0;i<pontos.length-1;i++){
+    const a=pontos[i],b=pontos[i+1],antes=pontos[i-1]||a,depois=pontos[i+2]||b;
+    const c={x:a.x+(b.x-antes.x)/6,y:a.y+(b.y-antes.y)/6};
+    const e={x:b.x-(depois.x-a.x)/6,y:b.y-(depois.y-a.y)/6};
+    trechos.push({a,b,c,e});
+    caminho+=dobras.length ? ` C ${c.x} ${c.y} ${e.x} ${e.y} ${b.x} ${b.y}` : ` L ${b.x} ${b.y}`;
+  }
+  function ponto(t){
+    if(!dobras.length) return interpolar(p1,p2,t);
+    const i=Math.min(trechos.length-1,Math.floor(t*trechos.length));
+    const u=t*trechos.length-i,{a,b,c,e}=trechos[i];
+    const ac=interpolar(a,c,u),ce=interpolar(c,e,u),eb=interpolar(e,b,u);
+    return interpolar(interpolar(ac,ce,u),interpolar(ce,eb,u),u);
+  }
+  return {caminho,ponto,tangente:trechos.at(-1).e};
+}
+
+const ancorasRender=new Map();
+const alcasLinha=document.getElementById("alcasLinha");
+const tipoLinha=document.getElementById("tipoLinha");
+let gestoLinha=null;
+function setaAtual(){
+  return diagramaAtual()?.seta.find(s=>s.id===estado.setaSelecionada);
+}
+const campoCondicao=document.getElementById("campoCondicao");
+function saidaDecisao(d,s){
+  return d.tipo==="atividades" && s && d.no.some(n=>n.id===s.de && n.tipo==="decisao");
+}
+campoCondicao.addEventListener("input",()=>{
+  const s=setaAtual();
+  if(!s) return;
+  s.rotulo=campoCondicao.value;
+  salvarLocal("condicao:"+s.id); render();
+});
+campoCondicao.addEventListener("keydown",ev=>{
+  if(ev.key==="Enter"){ev.preventDefault();svg.focus({preventScroll:true});}
+});
+function atualizarControlesLinha(d){
+  const s=setaAtual(), tipos=TIPOS[d.tipo].conexoes;
+  const condicao=Boolean(saidaDecisao(d,s));
+  document.getElementById("grupoCondicao").hidden=!condicao;
+  if(condicao && campoCondicao.value!==(s.rotulo||"")) campoCondicao.value=s.rotulo||"";
+  if(condicao) document.getElementById("btnEditarTexto").hidden=true;
+  document.getElementById("tipoLinhaGrupo").hidden=!s||tipos.length<2;
+  if(s && tipos.length>1){
+    if(tipoLinha.dataset.diagrama!==d.tipo){
+      tipoLinha.replaceChildren(...tipos.map(t=>new Option(RÓTULO_CONEXAO[t],t)));
+      tipoLinha.dataset.diagrama=d.tipo;
+    }
+    tipoLinha.value=s.tipo;
+  }
+  document.getElementById("endireitarLinha").hidden=!s?.dobras?.length;
+}
+tipoLinha.addEventListener("change",()=>{
+  const s=setaAtual();
+  if(s){s.tipo=tipoLinha.value; salvarLocal(); render();}
+});
+document.getElementById("endireitarLinha").addEventListener("click",()=>{
+  const s=setaAtual();
+  if(s){delete s.dobras; salvarLocal(); render();}
+});
+function mostrarAlcas(par,tracado,dobras){
+  function alca(p,acao,indice,titulo){
+    const c=document.createElementNS(svg.namespaceURI,"circle");
+    c.setAttribute("cx",p.x); c.setAttribute("cy",p.y);
+    c.setAttribute("r",acao==="inserir"?4:6);
+    c.dataset.acao=acao; c.dataset.indice=indice;
+    const dica=document.createElementNS(svg.namespaceURI,"title");
+    dica.textContent=titulo; c.appendChild(dica); alcasLinha.appendChild(c);
+  }
+  for(let i=0;i<=dobras.length;i++){
+    alca(tracado.ponto((i+.5)/(dobras.length+1)),"inserir",i,"Arraste para criar uma curva");
+  }
+  dobras.forEach((p,i)=>alca(p,"mover",i,"Arraste para ajustar a curva"));
+  alca(par.p1,"de",0,"Arraste a origem até a borda de um bloco");
+  alca(par.p2,"para",0,"Arraste o destino até a borda de um bloco");
+}
+alcasLinha.addEventListener("click",ev=>ev.stopPropagation());
+function iniciarGestoLinha(ev,s,acao,indice,peloTraco=false){
+  if(gestoLinha || ev.button!==0 || !s || !acao) return;
+  ev.preventDefault(); ev.stopPropagation();
+  gestoLinha={id:s.id,ponteiro:ev.pointerId,acao,indice,peloTraco,
+    inicio:{x:ev.clientX,y:ev.clientY},dobras:[...(s.dobras||[])]};
+  alcasLinha.setPointerCapture(ev.pointerId);
+}
+alcasLinha.addEventListener("pointerdown",ev=>{
+  iniciarGestoLinha(ev,setaAtual(),ev.target.dataset.acao,Number(ev.target.dataset.indice));
+});
+function atualizarGestoLinha(ev){
+  const g=gestoLinha;
+  if(!g || g.ponteiro!==ev.pointerId) return;
+  if(!g.pos && Math.hypot(ev.clientX-g.inicio.x,ev.clientY-g.inicio.y)<3) return;
+  g.pos=posMundo(ev.clientX,ev.clientY);
+  if(g.acao==="inserir"){g.dobras.splice(g.indice,0,g.pos); g.acao="mover";}
+  if(g.acao==="mover") g.dobras[g.indice]=g.pos;
+}
+alcasLinha.addEventListener("pointermove",ev=>{
+  if(gestoLinha?.ponteiro!==ev.pointerId) return;
+  atualizarGestoLinha(ev);
+  if(gestoLinha.pos) render();
+});
+function mudarExtremidade(s,g){
+  const d=diagramaAtual(), atividade=d.tipo==="atividades";
+  let candidato,menor=18/estado.zoom;
+  for(const no of d.no){
+    const aa=ancorasRender.get(no.id);
+    if(!aa) continue;
+    const opcoes=atividade ? Object.entries(aa) : [[null,encaixeNoContorno(no,g.pos)]];
+    for(const [lado,p] of opcoes){
+      const distancia=Math.hypot(p.x-g.pos.x,p.y-g.pos.y);
+      if(distancia<=menor){menor=distancia;candidato={no,lado,p};}
+    }
+  }
+  if(!candidato){toast("Solte a ponta sobre "+(atividade?"uma âncora.":"a borda de um bloco."),"erro");return;}
+  const {no,lado,p}=candidato, origem=g.acao==="de";
+  const de=origem?no.id:s.de,para=origem?s.para:no.id;
+  if(de===para || d.seta.some(o=>o!==s && o.de===de && o.para===para)){
+    toast("Escolha outro bloco para essa conexão.","erro"); return;
+  }
+  if(atividade && !pontoDisponivel(d,no.id,lado,s)) return;
+  s[g.acao]=no.id;
+  if(atividade) s[origem?"ancoraDe":"ancoraPara"]=lado;
+  else s[origem?"pontoDe":"pontoPara"]={x:p.x-no.x,y:p.y-no.y,...dimensoesNo(no)};
+  salvarLocal();
+}
+alcasLinha.addEventListener("pointerup",ev=>{
+  if(gestoLinha?.ponteiro!==ev.pointerId) return;
+  atualizarGestoLinha(ev);
+  const g=gestoLinha,s=setaAtual(); gestoLinha=null;
+  if(s?.id===g.id && !g.pos && g.peloTraco){clickSeta(s);return;}
+  if(s?.id===g.id && g.pos){
+    if(g.acao==="mover"){s.dobras=g.dobras; salvarLocal();}
+    else mudarExtremidade(s,g);
+  }
+  render();
+});
+alcasLinha.addEventListener("lostpointercapture",()=>{
+  if(gestoLinha){gestoLinha=null; render();}
+});
+
+function render(d=diagramaAtual(),paraPDF=false){
+  if(!d) return;
   // remove conexões órfãs (um dos blocos não existe mais) — evita setas invisíveis
   // que não podem ser clicadas nem excluídas
   const antesSetas=d.seta.length;
   d.seta=d.seta.filter(s=>d.no.some(n=>n.id===s.de)&&d.no.some(n=>n.id===s.para));
-  if(d.seta.length!==antesSetas) salvarLocal();
-  const pontosPorNo=new Map();
+  if(!paraPDF && d.seta.length!==antesSetas) salvarLocal();
+  const pontosPorNo=ancorasRender;
+  pontosPorNo.clear();
+  alcasLinha.replaceChildren();
   camadaNos.innerHTML="";
   for(const no of d.no){
-    const {w,h}=dimsPadrao(no.tipo);
+    const {w,h}=dimensoesNo(no);
     const g=document.createElementNS("http://www.w3.org/2000/svg","g");
     const origemAtiva=estado.ferramenta==="conectar"&&estado.origemConexao===no.id;
     g.setAttribute("class","no-grp"+(estado.selecionados.has(no.id)?" selecionado":"")+(origemAtiva?" origem":""));
@@ -568,56 +959,67 @@ function render(){
     g.setAttribute("data-id",no.id);
     g.innerHTML=formaSVG(no.tipo,w,h);
     camadaNos.appendChild(g);
-    const aa=ancoras(no,g,w,h);
-    pontosPorNo.set(no.id,aa);
     const forma=formaDoTipo(no.tipo);
-    let tx=w/2, ty=h/2+5, anchor="middle";
-    if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;anchor="middle";}
-    else if(no.tipo==="ator"){tx=w/2;ty=h+16;anchor="middle";} // etiqueta abaixo da figura (não sobre as pernas)
-    else if(forma==="limite"){tx=14;ty=26;anchor="start";}
-    else if(no.tipo==="nota"){tx=14;ty=30;anchor="start";}
+    const caixa=formasDeCaixa.has(forma);
+    const circular=Boolean(recuoCircular[forma]);
     const texto=document.createElementNS("http://www.w3.org/2000/svg","text");
     texto.setAttribute("class","no-texto");
-    texto.setAttribute("x",tx);texto.setAttribute("y",ty);
-    texto.setAttribute("text-anchor",anchor);
-    if(forma!=="oval"&&forma!=="alvo"){
-      (no.texto||"").split("\n").forEach((ln,i)=>{
-        const ts=document.createElementNS("http://www.w3.org/2000/svg","tspan");
-        ts.setAttribute("x",tx);ts.setAttribute("dy",i===0?0:15);
-        ts.textContent=ln;
-        texto.appendChild(ts);
-      });
-      g.appendChild(texto);
-    }
+    const pos=posicaoTexto(no,w,h);
+    const layout=caixa ? comporRotulo(no,w,h) : {
+      x:pos.tx,y:pos.ty,anchor:"middle",linhas:(no.texto||"").split("\n")
+    };
+    texto.setAttribute("text-anchor",layout.anchor);
+    texto.setAttribute("x",layout.x);
+    texto.setAttribute("y",layout.y);
+    if(caixa) texto.setAttribute("font-size",layout.fonte);
+    layout.linhas.forEach((ln,i)=>{
+      const ts=document.createElementNS("http://www.w3.org/2000/svg","tspan");
+      ts.setAttribute("x",layout.x);
+      ts.setAttribute("y",layout.y+i*(caixa?layout.fonte*1.25:15));
+      ts.textContent=ln;
+      texto.appendChild(ts);
+    });
+    g.appendChild(texto);
+    const ator=no.tipo==="ator";
+    const borda=ator ? areaDoAtor(w,h,texto) : g.querySelector(".forma-pre").getBBox();
+    const aa=ancoras(no,borda);
+    pontosPorNo.set(no.id,aa);
+    if(!ator && d.tipo!=="atividades") medirContorno(no,g);
+  // área de clique: cobre todo o box do bloco (transparente) — permite clicar e
+  // arrastar em qualquer ponto do bloco, inclusive em áreas vazias da figura do ator
+  const hit=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  hit.setAttribute("class",ator?"hit-no area-ator":"hit-no");
+  hit.setAttribute("x",ator||circular?borda.x:0); hit.setAttribute("y",0);
+  hit.setAttribute("width",ator||circular?borda.width:w); hit.setAttribute("height",ator?borda.height:h);
+  hit.setAttribute("rx",ator?0:4);
+  g.appendChild(hit);
   if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
-    for(const k of ["topo","direita","inferior","esquerda"]){
+    for(const k of ladosAtividade){
       const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
       circ.setAttribute("class","ancora");
+      if(d.tipo==="atividades") circ.dataset.ancora=k;
       circ.setAttribute("cx",aa[k].x-no.x);
       circ.setAttribute("cy",aa[k].y-no.y);
       circ.setAttribute("r",6);
       g.appendChild(circ);
     }
   }
-  // área de clique: cobre todo o box do bloco (transparente) — permite clicar e
-  // arrastar em qualquer ponto do bloco, inclusive em áreas vazias da figura do ator
-  const hit=document.createElementNS("http://www.w3.org/2000/svg","rect");
-  hit.setAttribute("class","hit-no");
-  hit.setAttribute("x",0); hit.setAttribute("y",0);
-  hit.setAttribute("width",w); hit.setAttribute("height",h);
-  hit.setAttribute("rx",4);
-  g.appendChild(hit);
-  // retângulo invisível ao redor do ator: envolve a figura (topo da cabeça, pontas
-  // dos braços, base das pernas) — guia de alinhamento das âncoras (não é visível)
-  if(no.tipo==="ator"){
-    const geo=geomAtor(w,h);
-    const alinha=document.createElementNS("http://www.w3.org/2000/svg","rect");
-    alinha.setAttribute("class","alinha-ator");
-    alinha.setAttribute("x",geo.x0); alinha.setAttribute("y",geo.y0);
-    alinha.setAttribute("width",geo.x1-geo.x0); alinha.setAttribute("height",geo.y1-geo.y0);
-    alinha.setAttribute("rx",4);
-    g.appendChild(alinha);
-  }
+
+    if(!paraPDF && caixa && estado.ferramenta==="selecionar" &&
+       estado.selecionados.size===1 && estado.selecionados.has(no.id)){
+      const alca=document.createElementNS(svg.namespaceURI,"rect");
+      alca.setAttribute("class","alca-tamanho");
+      const direita=circular?borda.x+borda.width:w;
+      const inferior=circular?borda.y+borda.height:h;
+      alca.setAttribute("x",direita-7); alca.setAttribute("y",inferior-7);
+      alca.setAttribute("width",14); alca.setAttribute("height",14);
+      alca.setAttribute("rx",3);
+      const titulo=document.createElementNS(svg.namespaceURI,"title");
+      titulo.textContent="Arraste para redimensionar o bloco";
+      alca.appendChild(titulo);
+      alca.onpointerdown=ev=>iniciarTamanho(ev,no);
+      g.appendChild(alca);
+    }
     g.onclick=ev=>{ ev.stopPropagation(); clickNo(no,ev); };
     // duplo-clique: seleciona e abre a edição inline do texto (trocar o nome
     // diretamente na caixa) — qualquer ferramenta, incluse conectar. O clique
@@ -631,33 +1033,53 @@ function render(){
   }
   camadaSetasFundo.innerHTML="";
   camadaConexoes.innerHTML="";
-  const fanout=calcularFanout(d,pontosPorNo);
+  const camadaRotulos=document.getElementById("camadaRotulos");
+  camadaRotulos.replaceChildren();
+  const ocupados=[];
+  const fanout=d.tipo==="atividades" ? conexoesAtividade(d,pontosPorNo,!paraPDF) : calcularFanout(d,pontosPorNo);
+  const nosPorId=new Map(d.no.map(no=>[no.id,no]));
   for(const s of d.seta){
-    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
-    if(!a||!b) continue;
-    const par=fanout.get(s.id)||parEncaixe(pontosPorNo.get(a.id),a,pontosPorNo.get(b.id),b);
-    const dPath=caminhoReto(par.p1,par.p2);
+    const par=fanout.get(s.id);
+    if(!par) continue;
+    if(d.tipo!=="atividades"){
+      const a=nosPorId.get(s.de),b=nosPorId.get(s.para);
+      if(a.tipo!=="ator") par.p1=extremidadeNo(a,s.pontoDe,par.p1);
+      if(b.tipo!=="ator") par.p2=extremidadeNo(b,s.pontoPara,par.p2);
+    }
+    const gesto=gestoLinha?.id===s.id ? gestoLinha : null;
+    if(gesto?.pos && gesto.acao==="de") par.p1=gesto.pos;
+    if(gesto?.pos && gesto.acao==="para") par.p2=gesto.pos;
+    const dobras=gesto?.dobras || s.dobras || [];
+    const tracado=tracadoLinha(par.p1,par.p2,dobras);
+    const dPath=tracado.caminho;
     const sel=estado.setaSelecionada===s.id;
+    if(sel && estado.ferramenta==="selecionar") mostrarAlcas(par,tracado,dobras);
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
     const marca=vazio?`<<${s.tipo}>>`:"";
-    const meio={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
-    const lblX=meio.x, lblY=meio.y;
     // cabeça sólida da seta, desenhada ABAIXO das linhas (camada de fundo), para a
     // ponta não ser vazada e as linhas que cruzam por ela ficarem visíveis
     if(!semSeta){
       const pol=document.createElementNS("http://www.w3.org/2000/svg","polygon");
-      pol.setAttribute("points",cabecaSeta(par.p1,par.p2));
+      pol.setAttribute("points",cabecaSeta(tracado.tangente,par.p2));
       pol.setAttribute("class","seta-cabeca"+(sel?" selecionada":""));
       camadaSetasFundo.appendChild(pol);
     }
     let html=`<path class="conector-hit" d="${dPath}"/>`;
     html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
-    if(marca) html+=`<rect class="conector-caixa" x="${lblX-marca.length*2.4-4}" y="${lblY-7}" width="${marca.length*4.8+8}" height="14" rx="4"/>
-                     <text class="conector-marca-pequena ${s.tipo}" x="${lblX}" y="${lblY+3.5}" text-anchor="middle">${esc(marca)}</text>`;
-    if(s.rotulo&&s.rotulo.trim()){
-      html+=`<rect class="conector-caixa" x="${lblX-s.rotulo.length*3.6-6}" y="${lblY-22}" width="${s.rotulo.length*7.2+12}" height="18" rx="6" opacity=".95"/>
-             <text class="conector-marca" x="${lblX}" y="${lblY-8}" text-anchor="middle">${esc(s.rotulo)}</text>`;
+    const texto=(s.rotulo||"").trim();
+    let rotulos="";
+    if(marca||texto){
+      const larguraMarca=marca.length*5.5+10, larguraTexto=texto.length*7.2+12;
+      const {x,y}=posicionarRotulo(tracado,Math.max(larguraMarca,larguraTexto),Boolean(texto),ocupados,
+        d.tipo==="atividades" && nosPorId.get(s.de)?.tipo==="decisao");
+      if(marca) rotulos+=`<rect class="conector-caixa" x="${x-larguraMarca/2}" y="${y-8}" width="${larguraMarca}" height="16" rx="4"/>
+        <text class="conector-marca-pequena ${s.tipo}" x="${x}" y="${y+3}" text-anchor="middle">${esc(marca)}</text>`;
+      if(texto){
+        const topo=marca?y-29:y-9;
+        rotulos+=`<rect class="conector-caixa" x="${x-larguraTexto/2}" y="${topo}" width="${larguraTexto}" height="18" rx="5"/>
+          <text class="conector-marca" x="${x}" y="${topo+13}" text-anchor="middle">${esc(texto)}</text>`;
+      }
     }
     const g=document.createElementNS("http://www.w3.org/2000/svg","g");
     g.setAttribute("data-seta",s.id);
@@ -667,16 +1089,39 @@ function render(){
     g.onclick=ev=>{ ev.stopPropagation(); clickSeta(s); };
     // duplo-clique seleciona a seta (qualquer ferramenta)
     g.ondblclick=ev=>{ ev.stopPropagation(); selecionarSeta(s); };
+    if(sel && estado.ferramenta==="selecionar"){
+      g.onpointerdown=ev=>{
+        const p=posMundo(ev.clientX,ev.clientY);
+        const n=dobras.length+1;
+        let indice=0,menor=Infinity;
+        for(let i=0;i<n*12;i++){
+          const q=tracado.ponto((i+.5)/(n*12)),dist=Math.hypot(q.x-p.x,q.y-p.y);
+          if(dist<menor){indice=Math.floor(i/12);menor=dist;}
+        }
+        iniciarGestoLinha(ev,s,"inserir",indice,true);
+      };
+    }
     camadaConexoes.appendChild(g);
+    if(rotulos){
+      const grupo=g.cloneNode(false);
+      grupo.innerHTML=rotulos;
+      grupo.onclick=g.onclick; grupo.ondblclick=g.ondblclick;
+      camadaRotulos.appendChild(grupo);
+    }
   }
+  if(paraPDF) return;
   const dica=document.getElementById("dicaCanvas");
-  dica.style.display=d.no.length===0?"block":"none";
+  dica.hidden=d.no.length>0;
+  if(!d.no.length) dica.textContent=document.getElementById("painelBlocos").hidden ?
+    "Abra Blocos para adicionar a primeira forma." : "Escolha um bloco na paleta para começar.";
   const info=document.getElementById("infoSelecionado");
   const quantidade=estado.selecionados.size;
   document.getElementById("acoesSelecao").hidden=!quantidade && !estado.setaSelecionada;
   document.getElementById("btnEditarTexto").hidden=quantidade>1;
   info.textContent=estado.setaSelecionada ? "Seta selecionada" :
     quantidade===1 ? "Bloco selecionado" : quantidade+" blocos selecionados";
+  atualizarCamposTamanho(d);
+  atualizarControlesLinha(d);
   atualizarCampoNomeAtor();
   posicionarInline(); // acompanha o bloco se ele se mover enquanto o campo de edição está aberto
 }
@@ -708,7 +1153,7 @@ document.getElementById("campoNomeAtor").addEventListener("input",e=>{
   const no=d.no.find(n=>n.id===ids[0]);
   if(!no||no.tipo!=="ator") return;
   no.texto=e.target.value;
-  salvarLocal(); render();
+  salvarLocal("ator:"+no.id); render();
 });
 
 /* ---------- Interação: cliques ---------- */
@@ -734,14 +1179,20 @@ function selecionarSeta(s){
 function clickNo(no,ev){
   if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
   if(estado.ferramenta==="conectar"){
+    const d=diagramaAtual();
+    const lado=ev.target?.dataset?.ancora;
     if(!estado.origemConexao){
+      if(d.tipo==="atividades" && !pontoDisponivel(d,no.id,lado)) return;
+      estado.ancoraOrigem=lado;
       estado.origemConexao=no.id; render();
-      toast("Bloco origem definido. Clique no bloco de destino para criar a seta.","sucesso");
+      toast(d.tipo==="atividades" ? "Escolha um ponto azul livre ou clique no bloco de destino." :
+        "Bloco origem definido. Clique no bloco de destino para criar a seta.","sucesso");
     }else if(estado.origemConexao===no.id){
       estado.origemConexao=null; render();
     }else{
-      adicionarSeta(estado.origemConexao,no.id);
-      estado.origemConexao=null;
+      const de=estado.origemConexao;
+      if(d.tipo!=="atividades") estado.origemConexao=null;
+      adicionarSeta(de,no.id,estado.ancoraOrigem,lado);
     }
     return;
   }
@@ -783,7 +1234,7 @@ function mundoParaWrap(x,y){
 function posicaoTexto(no,w,h){
   const forma=formaDoTipo(no.tipo);
   let tx=w/2, ty=h/2+5;
-  if(forma==="alvo"||forma==="barra"){tx=w/2;ty=h+18;}
+  if(forma==="barra"){tx=w/2;ty=h+18;}
   else if(no.tipo==="ator"){tx=w/2;ty=h+16;}
   else if(forma==="limite"){tx=14;ty=26;}
   else if(forma==="nota"){tx=14;ty=30;}
@@ -799,32 +1250,25 @@ function fecharInline(){
 function abrirInline(no){
   const d=diagramaAtual(); if(!d) return;
   if(inlineEdit) fecharInline();
-  const {w,h}=dimsPadrao(no.tipo);
-  const {tx,ty}=posicaoTexto(no,w,h);
-  const p=mundoParaWrap(no.x+tx, no.y+ty);
   const wrap=document.getElementById("canvasWrap");
-  const input=document.createElement("input");
+  const caixa=formasDeCaixa.has(formaDoTipo(no.tipo));
+  const input=document.createElement(caixa?"textarea":"input");
   input.className="editor-inline";
-  input.type="text";
+  input.setAttribute("aria-label","Texto do bloco");
+  if(caixa) input.rows=2;
   input.maxLength=120;
-  input.value=no.texto||"";
-  input.style.width=Math.max(120,(no.texto||"").length*8+24)+"px";
-  input.style.left=p.x+"px";
-  input.style.top=(p.y-14)+"px"; // posição inicial; refinada abaixo com a altura real
+  input.value=textoDoBloco(no);
   input.style.transform="translateX(-50%)";
   wrap.appendChild(input);
-  // centraliza verticalmente o campo exatamente sobre a linha do texto:
-  // o centro do campo fica na baseline do texto (p.y), ajustado pelo padding
-  const ih=input.offsetHeight||30;
-  input.style.top=(p.y - ih/2)+"px";
   inlineEdit={input,no,original:no.texto||""};
-  input.focus(); input.select();
+  posicionarInline();
+  input.focus({preventScroll:true}); input.select();
   input.addEventListener("input",()=>{
     no.texto=input.value;
     render();
   });
   input.addEventListener("keydown",ev=>{
-    if(ev.key==="Enter"){ ev.preventDefault(); fecharInline(); salvarLocal(); }
+    if(ev.key==="Enter" && !(caixa && ev.shiftKey) && !ev.isComposing){ ev.preventDefault(); fecharInline(); salvarLocal(); }
     else if(ev.key==="Escape"){ ev.preventDefault(); no.texto=inlineEdit.original; fecharInline(); }
   });
   input.addEventListener("blur",()=>{ fecharInline(); salvarLocal(); });
@@ -837,21 +1281,33 @@ function posicionarInline(){
   if(!inlineEdit) return;
   const d=diagramaAtual(); if(!d) return;
   const no=d.no.find(n=>n.id===inlineEdit.no.id); if(!no) return;
-  const {w,h}=dimsPadrao(no.tipo);
-  const {tx,ty}=posicaoTexto(no,w,h);
+  const {w,h}=dimensoesNo(no);
+  const caixa=formasDeCaixa.has(formaDoTipo(no.tipo));
+  const {tx,ty}=caixa ? {tx:w/2,ty:h/2} : posicaoTexto(no,w,h);
   const p=mundoParaWrap(no.x+tx, no.y+ty);
+  const largura=caixa ? w*estado.zoom-8 : Math.max(120,(no.texto||"").length*8+24);
+  inlineEdit.input.style.width=Math.min(svg.clientWidth,Math.max(50,largura))+"px";
   // centraliza o campo (centro na baseline do texto), como na abertura
   const ih=inlineEdit.input.offsetHeight||30;
   inlineEdit.input.style.left=p.x+"px";
   inlineEdit.input.style.top=(p.y - ih/2)+"px";
 }
-function adicionarSeta(de,para){
+function adicionarSeta(de,para,ancoraDe,ancoraPara){
   const d=diagramaAtual();
   if(de===para){ toast("Não é possível conectar um bloco a ele mesmo.","erro"); return;}
   if(d.seta.some(s=>s.de===de&&s.para===para)){ toast("Esta conexão já existe.","erro"); return;}
-  d.seta.push({id:novoId(),de,para,tipo:estado.tipoConexao,rotulo:""});
-  salvarLocal(); render();
-  toast("Seta criada ✓","sucesso");
+  const atividade=d.tipo==="atividades";
+  if(atividade && (!pontoDisponivel(d,de,ancoraDe) || !pontoDisponivel(d,para,ancoraPara))) return;
+  const seta={id:novoId(),de,para,tipo:estado.tipoConexao,rotulo:""};
+  if(atividade){seta.ancoraDe=ancoraDe; seta.ancoraPara=ancoraPara;}
+  d.seta.push(seta);
+  estado.origemConexao=null;
+  estado.ancoraOrigem=null;
+  const condicao=saidaDecisao(d,seta);
+  if(condicao){estado.selecionados.clear();estado.setaSelecionada=seta.id;}
+  render(); salvarLocal();
+  if(condicao) campoCondicao.focus({preventScroll:true});
+  else toast("Seta criada ✓","sucesso");
 }
 function excluirSelecionados(){
   const d=diagramaAtual();
@@ -869,36 +1325,117 @@ function excluirSelecionados(){
 function adicionarBloco(tipo,x,y){
   const d=diagramaAtual();
   if(x===undefined||y===undefined){
-    // centro do plano: o viewBox é centrado em (0,0), então adicionar em (0,0)
-    // coloca o bloco no centro visível da tela, não num canto
-    x=0; y=0;
+    const vista=svg.viewBox.baseVal;
+    x=vista.x+vista.width/2; y=vista.y+vista.height/2;
   }
   const dim=dimsPadrao(tipo);
   const no={id:novoId(),tipo,x:Math.round(x-dim.w/2),y:Math.round(y-dim.h/2),texto:formaDoTipo(tipo)==="limite"?"Sistema":""};
   d.no.push(no);
   estado.selecionados.clear(); estado.selecionados.add(no.id);
   estado.setaSelecionada=null;
-  render();
+  render(); salvarLocal();
   return no;
 }
 
+const camposTamanho=document.getElementById("camposTamanho");
+function caixaSelecionada(d){
+  if(!d || estado.selecionados.size!==1 || estado.ferramenta!=="selecionar") return;
+  return d.no.find(n=>estado.selecionados.has(n.id) && formasDeCaixa.has(formaDoTipo(n.tipo)));
+}
+function atualizarCamposTamanho(d){
+  const no=caixaSelecionada(d);
+  camposTamanho.hidden=!no;
+  if(no){
+    const dim=dimensoesNo(no);
+    const recuo=recuoCircular[formaDoTipo(no.tipo)];
+    for(const campo of camposTamanho.querySelectorAll("input")){
+      const diametro=campo.name==="diametro";
+      campo.parentElement.hidden=diametro!==Boolean(recuo);
+      if(!campo.parentElement.hidden) campo.value=diametro?dim.h-2*recuo:dim[campo.name];
+    }
+  }
+}
+camposTamanho.addEventListener("change",ev=>{
+  const d=diagramaAtual(),no=caixaSelecionada(d),campo=ev.target;
+  if(!no || !Object.hasOwn(tamanhoMinimo,campo.name)) return;
+  if(Number.isFinite(campo.valueAsNumber)){
+    no[campo.name]=limitarTamanho(campo.name,campo.valueAsNumber);
+    salvarLocal();
+  }
+  render();
+});
+function iniciarTamanho(ev,no){
+  ev.stopPropagation();
+  if(!ev.isPrimary || ev.button!==0 || gestoTamanho) return;
+  ev.preventDefault();
+  const tamanho=dimensoesNo(no);
+  gestoTamanho={no,id:ev.pointerId,inicio:posMundo(ev.clientX,ev.clientY),tamanho,atual:tamanho};
+  camadaNos.setPointerCapture(ev.pointerId);
+}
+function moverTamanho(ev){
+  const g=gestoTamanho;
+  if(!g || ev.pointerId!==g.id) return;
+  const p=posMundo(ev.clientX,ev.clientY);
+  const dx=p.x-g.inicio.x,dy=p.y-g.inicio.y;
+  const recuo=recuoCircular[formaDoTipo(g.no.tipo)];
+  if(recuo){
+    const delta=(dx+dy)/2;
+    g.atual=dimensoesCirculo(g.no.tipo,g.tamanho.h-2*recuo+delta);
+  }else{
+    g.atual={w:limitarTamanho("w",g.tamanho.w+dx),h:limitarTamanho("h",g.tamanho.h+dy)};
+  }
+}
+camadaNos.addEventListener("pointermove",ev=>{
+  if(gestoTamanho?.id!==ev.pointerId) return;
+  moverTamanho(ev); render();
+});
+function terminarTamanho(ev){
+  const g=gestoTamanho;
+  if(!g || ev.pointerId!==g.id) return;
+  if(ev.type==="pointerup"){
+    moverTamanho(ev);
+    if(g.atual.w!==g.tamanho.w || g.atual.h!==g.tamanho.h){
+      const recuo=recuoCircular[formaDoTipo(g.no.tipo)];
+      if(recuo) g.no.diametro=g.atual.h-2*recuo;
+      else Object.assign(g.no,g.atual);
+      salvarLocal();
+    }
+  }
+  gestoTamanho=null; render();
+}
+for(const evento of ["pointerup","pointercancel","lostpointercapture"])
+  camadaNos.addEventListener(evento,terminarTamanho);
+
 /* ---------- Arrastar blocos e pan ---------- */
 svg.addEventListener("pointerdown",ev=>{
-  if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")||ev.target.classList.contains("ancora")) return;
-  if(estado.ferramenta==="selecionar"&&!estado.origemConexao){
-    const p0=posMundo(ev.clientX,ev.clientY);
-    svg.classList.add("arrastando-bg");
-    const mover=e=>{
-      const p=posMundo(e.clientX,e.clientY);
-      const vb=svg.viewBox.baseVal;
-      svg.setAttribute("viewBox",`${vb.x+(p0.x-p.x)} ${vb.y+(p0.y-p.y)} ${vb.width} ${vb.height}`);
-    };
-    const fim=()=>{ svg.classList.remove("arrastando-bg");
-      svg.removeEventListener("pointermove",mover); svg.removeEventListener("pointerup",fim); svg.removeEventListener("pointercancel",fim); };
-    svg.addEventListener("pointermove",mover);
-    svg.addEventListener("pointerup",fim);
-    svg.addEventListener("pointercancel",fim);
-  }
+  if(ev.button!==0 || !ev.isPrimary || estado.ferramenta!=="selecionar" || estado.origemConexao) return;
+  if(ev.target.closest(".no-grp,.seta-grp,#alcasLinha")) return;
+  const ponteiro=ev.pointerId;
+  const inicio=posMundo(ev.clientX,ev.clientY);
+  let moveu=false;
+  svg.setPointerCapture(ponteiro);
+  svg.classList.add("arrastando-bg");
+  const mover=e=>{
+    if(e.pointerId!==ponteiro) return;
+    if(!moveu && Math.hypot(e.clientX-ev.clientX,e.clientY-ev.clientY)<3) return;
+    moveu=true;
+    const p=posMundo(e.clientX,e.clientY), vb=svg.viewBox.baseVal;
+    svg.setAttribute("viewBox",`${vb.x+inicio.x-p.x} ${vb.y+inicio.y-p.y} ${vb.width} ${vb.height}`);
+    posicionarInline();
+  };
+  const fim=e=>{
+    if(e.pointerId!==ponteiro) return;
+    if(moveu && e.type==="pointerup") arrastoReal=true;
+    svg.classList.remove("arrastando-bg");
+    svg.removeEventListener("pointermove",mover);
+    svg.removeEventListener("pointerup",fim);
+    svg.removeEventListener("pointercancel",fim);
+    svg.removeEventListener("lostpointercapture",fim);
+  };
+  svg.addEventListener("pointermove",mover);
+  svg.addEventListener("pointerup",fim);
+  svg.addEventListener("pointercancel",fim);
+  svg.addEventListener("lostpointercapture",fim);
 });
 let arrastagem=null;
 // true quando o usuário realmente arrastou (movimento acima do limite) — usado para
@@ -969,7 +1506,7 @@ document.addEventListener("pointerup",fimArrasto);
 document.addEventListener("pointercancel",fimArrasto);
 svg.addEventListener("click",ev=>{
   if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
-  if(ev.target.closest(".no-grp")||ev.target.closest(".seta-grp")) return;
+  if(ev.target===camadaNos || ev.target.closest(".no-grp,.seta-grp")) return;
   if(estado.ferramenta==="conectar"&&estado.origemConexao){ estado.origemConexao=null; render(); }
   else{ estado.selecionados.clear(); estado.setaSelecionada=null; render(); }
 });
@@ -999,7 +1536,7 @@ document.getElementById("ferrLimpar").addEventListener("click",()=>{
 });
 document.getElementById("tituloDiagrama").addEventListener("input",e=>{
   const d=diagramaAtual(); if(!d) return;
-  d.nome=e.target.value; salvarLocal();
+  d.nome=e.target.value; salvarLocal("titulo");
 });
 document.getElementById("zoomIn").addEventListener("click",()=>{ estado.zoom=Math.min(3,estado.zoom*1.2); aplicarZoomVisual(); });
 document.getElementById("zoomOut").addEventListener("click",()=>{ estado.zoom=Math.max(0.3,estado.zoom/1.2); aplicarZoomVisual(); });
@@ -1012,32 +1549,25 @@ document.getElementById("btnTema").addEventListener("click",()=>{
 /* =========================================================================
    Exportação SVG/PNG e import/export JSON
    ========================================================================= */
-function bboxDoCanvas(){
-  const d=diagramaAtual(); if(!d) return {x:0,y:0,w:800,h:600};
+function bboxDoCanvas(d=diagramaAtual()){
+  if(!d) return {x:0,y:0,w:800,h:600};
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   for(const no of d.no){
-    const dim=dimsPadrao(no.tipo);
+    const dim=dimensoesNo(no);
     minX=Math.min(minX,no.x); minY=Math.min(minY,no.y);
     maxX=Math.max(maxX,no.x+dim.w); maxY=Math.max(maxY,no.y+dim.h);
-    if(formaDoTipo(no.tipo)==="alvo"||no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
-    if(no.tipo==="ator") maxY=Math.max(maxY,no.y+dim.h+30); // inclui a etiqueta abaixo da figura
+    if(no.tipo==="barra") maxY=Math.max(maxY,no.y+dim.h+28);
+    if(no.tipo==="ator"){
+      const aa=ancorasRender.get(no.id);
+      minX=Math.min(minX,aa.esquerda.x); maxX=Math.max(maxX,aa.direita.x);
+      maxY=Math.max(maxY,aa.inferior.y);
+    }
   }
-  // inclui as caixas de rótulo das setas (marca include/extend e rótulo do usuário)
-  // — usa a mesma distribuição de âncoras (encaixe/fan-out) da renderização, para o
-  // rótulo ficar no mesmo ponto que o renderizado
-  const pontosExport=new Map();
-  for(const no of d.no) pontosExport.set(no.id,ancorasDados(no));
-  const fanoutExport=calcularFanout(d,pontosExport);
-  for(const s of d.seta){
-    const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
-    if(!a||!b) continue;
-    const par=fanoutExport.get(s.id)||parEncaixe(ancorasDados(a),a,ancorasDados(b),b);
-    const m={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
-    let meia=0;
-    if(s.tipo==="include"||s.tipo==="extend") meia=28;
-    if(s.rotulo&&s.rotulo.trim()) meia=Math.max(meia, s.rotulo.length*3.6+6);
-    minX=Math.min(minX,m.x-meia); maxX=Math.max(maxX,m.x+meia);
-    minY=Math.min(minY,m.y-22); maxY=Math.max(maxY,m.y+8);
+  for(const camada of [camadaConexoes,camadaSetasFundo,document.getElementById("camadaRotulos")]){
+    if(!camada.childElementCount) continue;
+    const r=camada.getBBox();
+    minX=Math.min(minX,r.x); minY=Math.min(minY,r.y);
+    maxX=Math.max(maxX,r.x+r.width); maxY=Math.max(maxY,r.y+r.height);
   }
   if(!isFinite(minX)){ minX=0;minY=0;maxX=800;maxY=600; }
   const PAD=60;
@@ -1046,50 +1576,56 @@ function bboxDoCanvas(){
 /* CSS mínimo injetado no SVG exportado: variáveis do tema atual + classes de
    forma/texto/conector — o arquivo SVG standalone não carrega o style.css, então
    os estilos devem vir junto no próprio arquivo para renderizar com cores corretas */
-function cssExport(){
-  const vars=["--primario","--primario-2","--panel","--borda","--borda-2","--texto","--texto-2","--sucesso","--aviso"];
-  let root="";
-  for(const v of vars){
-    const val=getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-    if(val) root+=v+":"+val+";";
-  }
-  return root+`
-.forma-pre{stroke:var(--borda-2);stroke-width:2}
-.forma-oval,.forma-alvo-ext,.forma-barra{fill:var(--primario)}
-.forma-alvo-int{fill:var(--panel);stroke:var(--primario)}
-.forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:var(--panel)}
-.forma-ator{fill:none;stroke:var(--texto-2)}
-.no-texto{fill:var(--texto);font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
-.conector{fill:none;stroke:var(--texto-2);stroke-width:1.8}
-.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:all;cursor:pointer}
-.conector-caixa{fill:var(--panel);stroke:var(--borda)}
-.conector-marca{font-size:11.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
-.conector-marca.include{fill:var(--sucesso)}
-.conector-marca.extend{fill:var(--aviso)}
-.seta-marca{fill:var(--texto-2)}
-.seta-marca-sel{fill:var(--primario)}
-.seta-cabeca{fill:var(--texto-2)}
-.seta-cabeca.selecionada{fill:var(--primario)}
-.conector-marca-pequena{font-size:8.5px;font-weight:700;fill:var(--texto-2);font-family:inherit}
-.conector-marca-pequena.include{fill:var(--sucesso)}
-.conector-marca-pequena.extend{fill:var(--aviso)}
+// Cores da imagem em papel branco, inclusive quando o editor usa o tema escuro.
+const coresPNG={
+  "--primario":"#294e91", "--panel":"#f0f5fc", "--borda":"#8999ae",
+  "--borda-2":"#354e70", "--texto":"#17283d", "--texto-2":"#41546c",
+  "--sucesso":"#176144", "--aviso":"#824309"
+};
+function cssExport(formato){
+  const tema=getComputedStyle(document.documentElement);
+  const cor=nome=>formato==="png" ? coresPNG[nome] : tema.getPropertyValue(nome).trim();
+  return `
+.forma-pre{stroke:${cor("--borda-2")};stroke-width:2}
+.forma-oval,.forma-alvo-ext,.forma-barra{fill:${cor("--primario")}}
+.forma-alvo-int{fill:${cor("--panel")};stroke:${cor("--primario")}}
+.forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:${cor("--panel")}}
+.forma-ator{fill:none;stroke:${cor("--texto-2")}}
+.no-texto{fill:${cor("--texto")};font-family:"Segoe UI",system-ui,sans-serif;user-select:none}
+.forma-oval + .no-texto{fill:${cor("--panel")}}
+.conector{fill:none;stroke:${cor("--texto-2")};stroke-width:1.8}
+.conector-hit{fill:none;stroke:transparent;stroke-width:10;pointer-events:stroke;cursor:pointer}
+.conector-caixa{fill:${cor("--panel")};stroke:${cor("--borda")}}
+.conector-marca{font-size:11.5px;font-weight:700;fill:${cor("--texto-2")};font-family:inherit}
+.conector-marca.include{fill:${cor("--sucesso")}}
+.conector-marca.extend{fill:${cor("--aviso")}}
+.seta-marca{fill:${cor("--texto-2")}}
+.seta-marca-sel{fill:${cor("--primario")}}
+.seta-cabeca{fill:${cor("--texto-2")}}
+.seta-cabeca.selecionada{fill:${cor("--primario")}}
+.conector-marca-pequena{font-size:8.5px;font-weight:700;fill:${cor("--texto-2")};font-family:inherit}
+.conector-marca-pequena.include{fill:${cor("--sucesso")}}
+.conector-marca-pequena.extend{fill:${cor("--aviso")}}${formato==="png" ? `
+.conector-caixa{fill:white}
+.conector-marca,.conector-marca-pequena{font-family:"Segoe UI",system-ui,sans-serif}
+.conector-marca-pequena{font-size:10px}` : ""}
 `;
 }
-function construirSVGExport(){
-  const d=diagramaAtual();
-  const bb=bboxDoCanvas();
+function construirSVGExport(formato,d=diagramaAtual()){
+  const bb=bboxDoCanvas(d);
   const clone=svg.cloneNode(true);
   clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
   clone.querySelector("#gradePlano")?.remove();
+  clone.querySelector("#alcasLinha")?.remove();
   const contNos=clone.querySelector("#camadaNos");
-  if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alinha-ator").forEach(n=>n.remove());
+  if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alca-tamanho").forEach(n=>n.remove());
   const contSetas=clone.querySelector("#camadaConexoes");
   if(contSetas) contSetas.querySelectorAll(".conector-hit").forEach(n=>n.remove());
   clone.setAttribute("viewBox",`${bb.x} ${bb.y} ${bb.w} ${bb.h}`);
   clone.setAttribute("width",bb.w); clone.setAttribute("height",bb.h);
   // injeta os estilos (variáveis do tema + classes) para o SVG standalone renderizar correto
   const estilo=document.createElementNS("http://www.w3.org/2000/svg","style");
-  estilo.textContent=cssExport();
+  estilo.textContent=cssExport(formato);
   clone.insertBefore(estilo,clone.firstChild);
   const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
   bg.setAttribute("x",bb.x);bg.setAttribute("y",bb.y);bg.setAttribute("width",bb.w);bg.setAttribute("height",bb.h);
@@ -1112,7 +1648,7 @@ function nomeArquivo(base,ext){
 /* Gera a imagem PNG do diagrama (mesmo pipeline do export PNG: SVG -> canvas,
    escala 2). Retorna Promise com {blob, w, h} (w/h = pixels da imagem). */
 function pngDoDiagrama(){
-  const {svg:clone,bb}=construirSVGExport();
+  const {svg:clone,bb}=construirSVGExport("png");
   const ser=new XMLSerializer().serializeToString(clone);
   const url=URL.createObjectURL(new Blob([ser],{type:"image/svg+xml;charset=utf-8"}));
   return new Promise((resolve,reject)=>{
@@ -1135,7 +1671,7 @@ function exportar(tipo){
   const d=diagramaAtual();
   if(!d||d.no.length===0){ toast("Adicione blocos antes de exportar.","erro"); return;}
   if(tipo==="svg"){
-    const {svg:clone}=construirSVGExport();
+    const {svg:clone}=construirSVGExport("svg");
     download(nomeArquivo(d.nome,".svg"),new XMLSerializer().serializeToString(clone),"image/svg+xml;charset=utf-8");
     toast("SVG exportado ✓","sucesso");
   }else{
@@ -1292,7 +1828,7 @@ document.getElementById("btnExportarSVG").addEventListener("click",()=>exportar(
 document.getElementById("btnExportarPNG").addEventListener("click",()=>exportar("png"));
 document.getElementById("btnExportarDOCX").addEventListener("click",exportarDocx);
 document.getElementById("btnExportarJSON").addEventListener("click",()=>{
-  download(nomeArquivo("editor-diagramas",".json"),JSON.stringify(estado.diagramas,null,2),"application/json");
+  download(nomeArquivo("editor-diagramas",".json"),JSON.stringify(dadosColecao(),null,2),"application/json");
   toast("JSON exportado ✓","sucesso");
 });
 document.getElementById("btnImportarJSON").addEventListener("click",()=>document.getElementById("arquivoJSON").click());
@@ -1302,8 +1838,14 @@ document.getElementById("arquivoJSON").addEventListener("change",e=>{
   leitor.onload=()=>{
     try{
       const obj=JSON.parse(leitor.result);
-      if(!Array.isArray(obj)) throw new Error("estrutura inválida");
-      estado.diagramas=obj;
+      const colecao=lerColecao(obj);
+      if((estado.diagramas.length || estado.projetos.length) && !confirm("Substituir a coleção local de diagramas e projetos pela coleção deste arquivo?")){
+        e.target.value="";
+        return;
+      }
+      document.getElementById("buscaDiagramas").value="";
+      estado.diagramas=colecao.diagramas;
+      estado.projetos=colecao.projetos;
       estado.diagramaAtualId=null;
       salvarLocal(); renderInicio();
       toast("JSON importado ✓","sucesso");
@@ -1316,23 +1858,101 @@ document.getElementById("arquivoJSON").addEventListener("change",e=>{
 /* =========================================================================
    Inicialização
    ========================================================================= */
+// Histórico da sessão de edição atual. Cada salvamento registra o desenho uma vez.
+let historico=null, copiaDiagrama=null;
+function iniciarHistorico(d){
+  historico={id:d.id,atual:JSON.stringify(d),antes:[],depois:[],grupo:null};
+}
+function registrarEdicao(grupo){
+  const d=diagramaAtual();
+  if(!d || d.id!==historico?.id) return;
+  const atual=JSON.stringify(d);
+  if(historico.atual===atual) return;
+  if(!grupo || grupo!==historico.grupo){
+    historico.antes.push(historico.atual);
+    if(historico.antes.length>80) historico.antes.shift();
+  }
+  historico.atual=atual; historico.grupo=grupo; historico.depois.length=0;
+}
+function restaurarEdicao(refazer){
+  const h=historico,d=diagramaAtual();
+  if(!d || h?.id!==d.id) return;
+  const origem=refazer?h.depois:h.antes, destino=refazer?h.antes:h.depois;
+  if(!origem.length) return;
+  destino.push(h.atual); h.atual=origem.pop(); h.grupo=null;
+  Object.assign(d,JSON.parse(h.atual));
+  estado.selecionados.clear(); estado.setaSelecionada=null;
+  estado.origemConexao=null; estado.ancoraOrigem=null;
+  document.getElementById("tituloDiagrama").value=d.nome;
+  salvarLocal(); render();
+}
+function copiarSelecao(d){
+  const ids=new Set(estado.selecionados);
+  const linha=setaAtual();
+  if(!ids.size && linha){ids.add(linha.de); ids.add(linha.para);}
+  if(!ids.size) return null;
+  const setas=linha && !estado.selecionados.size ? [linha] : d.seta.filter(s=>ids.has(s.de)&&ids.has(s.para));
+  return structuredClone({tipo:d.tipo,no:d.no.filter(n=>ids.has(n.id)),seta:setas,colagens:0});
+}
+function colarSelecao(d,copia){
+  if(!copia) return;
+  if(d.tipo!==copia.tipo){toast("Cole em um diagrama do mesmo tipo.","erro");return;}
+  const ids=new Map(),deslocamento=24*(++copia.colagens);
+  const {no,seta}=structuredClone(copia);
+  for(const n of no){
+    const id=novoId(); ids.set(n.id,id);
+    n.id=id; n.x+=deslocamento; n.y+=deslocamento; d.no.push(n);
+  }
+  for(const s of seta){
+    s.id=novoId(); s.de=ids.get(s.de); s.para=ids.get(s.para);
+    for(const p of s.dobras||[]){p.x+=deslocamento;p.y+=deslocamento;}
+    d.seta.push(s);
+  }
+  estado.selecionados=new Set(ids.values()); estado.setaSelecionada=null;
+  estado.origemConexao=null; estado.ancoraOrigem=null;
+  render(); salvarLocal();
+}
+function atalhoEditor(ev){
+  const d=diagramaAtual();
+  if(!d || gestoTamanho || ev.defaultPrevented || ev.isComposing || ev.altKey || ev.target.isContentEditable ||
+     ev.target.closest?.("input,textarea,select,dialog")) return;
+  const tecla=ev.key.toLowerCase();
+  if(ev.ctrlKey || ev.metaKey){
+    if(!["a","c","v","d","z","y"].includes(tecla) || (ev.shiftKey && tecla!=="z")) return;
+    ev.preventDefault();
+    if(gestoLinha || arrastagem || ev.repeat) return;
+    switch(tecla){
+      case "a":
+        estado.selecionados=new Set(d.no.map(n=>n.id)); estado.setaSelecionada=null; render();break;
+      case "c":{
+        const selecao=copiarSelecao(d);
+        if(selecao){copiaDiagrama=selecao;toast("Seleção copiada.","sucesso");}
+        break;
+      }
+      case "v": colarSelecao(d,copiaDiagrama);break;
+      case "d": colarSelecao(d,copiarSelecao(d));break;
+      case "z": restaurarEdicao(ev.shiftKey);break;
+      case "y": restaurarEdicao(true);break;
+    }
+  }else if(tecla==="delete" || tecla==="backspace"){
+    if(estado.selecionados.size||estado.setaSelecionada){ev.preventDefault();excluirSelecionados();}
+  }else if(tecla==="t") definirFerramenta("selecionar");
+  else if(tecla==="c") definirFerramenta("conectar");
+}
+
 function init(){
   carregarLocal();
   temaAplicar(temaInicial());
   renderInicio();
   new ResizeObserver(()=>{
     if(diagramaAtual()){
-      aplicarZoomVisual();
-      posicionarInline();
+      aplicarZoomVisual("redimensionar");
     }
   }).observe(document.getElementById("canvasWrap"));
-  window.addEventListener("keydown",ev=>{
-    if(!diagramaAtual() || ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    if(ev.target.tagName==="INPUT"||ev.target.tagName==="TEXTAREA"||ev.target.tagName==="SELECT") return;
-    if(ev.key==="Delete"||ev.key==="Backspace"){
-      if(estado.selecionados.size||estado.setaSelecionada){ ev.preventDefault(); excluirSelecionados(); }
-    }else if(ev.key==="t"||ev.key==="T") definirFerramenta("selecionar");
-    else if(ev.key==="c"||ev.key==="C") definirFerramenta("conectar");
-  });
+  window.addEventListener("keydown",atalhoEditor);
+  document.addEventListener("focusout",()=>{if(historico) historico.grupo=null;});
+  svg.addEventListener("pointerdown",()=>{
+    if(document.activeElement?.matches("#camposTamanho input,#campoCondicao,#campoNomeAtor,#tituloDiagrama,#tipoLinha,#grupoConexoes")) svg.focus({preventScroll:true});
+  },true);
 }
 init();
