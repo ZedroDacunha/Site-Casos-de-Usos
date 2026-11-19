@@ -307,6 +307,7 @@ document.getElementById("modalConfirmar").addEventListener("click",()=>{
   document.getElementById("buscaDiagramas").value="";
   estado.diagramas.push(diagrama);
   salvarLocal();
+  mostrarColecao(abasBiblioteca[0]);
   modalFechar();
   abrirDiagrama(diagrama.id);
   document.getElementById("ferrSelecionar").focus();
@@ -319,9 +320,34 @@ document.getElementById("modalNome").addEventListener("keydown",e=>{
 /* =========================================================================
    Tela inicial: lista de diagramas
    ========================================================================= */
+const abasBiblioteca=Array.from(document.querySelectorAll(".abas [role=tab]"));
+function mostrarColecao(ativa){
+  for(const aba of abasBiblioteca){
+    const selecionada=aba===ativa;
+    aba.tabIndex=selecionada ? 0 : -1;
+    aba.setAttribute("aria-selected",String(selecionada));
+    document.getElementById(aba.getAttribute("aria-controls")).hidden=!selecionada;
+  }
+}
+abasBiblioteca.forEach((aba,i)=>{
+  aba.addEventListener("click",()=>mostrarColecao(aba));
+  aba.addEventListener("keydown",ev=>{
+    let alvo;
+    if(ev.key==="Home") alvo=abasBiblioteca[0];
+    else if(ev.key==="End") alvo=abasBiblioteca.at(-1);
+    else if(ev.key==="ArrowLeft" || ev.key==="ArrowRight"){
+      const passo=ev.key==="ArrowRight"?1:-1;
+      alvo=abasBiblioteca[(i+passo+abasBiblioteca.length)%abasBiblioteca.length];
+    }else return;
+    ev.preventDefault(); mostrarColecao(alvo); alvo.focus();
+  });
+});
+
 function renderInicio(){
   const cont=document.getElementById("listaDiagramas");
   cont.innerHTML="";
+  document.getElementById("totalDiagramas").textContent=estado.diagramas.length;
+  document.getElementById("totalProjetos").textContent=estado.projetos.length;
   const busca=document.getElementById("buscaDiagramas");
   const normalizar=valor=>valor.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR");
   const termo=normalizar(busca.value.trim());
@@ -337,6 +363,7 @@ function renderInicio(){
     const cfg=TIPOS[d.tipo]||{nome:d.tipo};
     const card=document.createElement("div");
     card.className="card-diag";
+    card.dataset.tipo=d.tipo;
     card.innerHTML=`
       <div class="cabeca">
         <h3>${esc(d.nome)}</h3>
@@ -424,7 +451,7 @@ function renderPaleta(){
     div.className="item-bloco";
     div.draggable=false;
     const {w,h}=dimsPadrao(it.id);
-    div.innerHTML=`<svg width="44" height="36" viewBox="0 0 ${w} ${h}">${formaSVG(it.id,w,h)}</svg><span class="label">${it.label}</span>`;
+    div.innerHTML=`<svg aria-hidden="true" width="44" height="36" viewBox="0 0 ${w} ${h}">${formaSVG(it.id,w,h)}</svg><span class="label">${it.label}</span>`;
     div.addEventListener("click",()=>adicionarBloco(it.id));
     div.addEventListener("pointerdown",e=>{
       if(e.button!==0&&e.pointerType==="mouse") return;
@@ -1586,7 +1613,7 @@ function cssExport(formato){
   const tema=getComputedStyle(document.documentElement);
   const cor=nome=>formato==="png" ? coresPNG[nome] : tema.getPropertyValue(nome).trim();
   return `
-.forma-pre{stroke:${cor("--borda-2")};stroke-width:2}
+.forma-pre{stroke:${formato==="png" ? cor("--borda-2") : cor("--contorno")};stroke-width:2}
 .forma-oval,.forma-alvo-ext,.forma-barra{fill:${cor("--primario")}}
 .forma-alvo-int{fill:${cor("--panel")};stroke:${cor("--primario")}}
 .forma-decisao,.forma-ret,.forma-ret-vaz,.forma-elipse,.forma-limite,.forma-nota{fill:${cor("--panel")}}
@@ -1860,8 +1887,16 @@ document.getElementById("arquivoJSON").addEventListener("change",e=>{
    ========================================================================= */
 // Histórico da sessão de edição atual. Cada salvamento registra o desenho uma vez.
 let historico=null, copiaDiagrama=null;
+const desfazer=document.getElementById("desfazer"),refazer=document.getElementById("refazer");
+function atualizarBotoesHistorico(){
+  desfazer.disabled=!historico?.antes.length;
+  refazer.disabled=!historico?.depois.length;
+}
+desfazer.addEventListener("click",()=>restaurarEdicao(false));
+refazer.addEventListener("click",()=>restaurarEdicao(true));
 function iniciarHistorico(d){
   historico={id:d.id,atual:JSON.stringify(d),antes:[],depois:[],grupo:null};
+  atualizarBotoesHistorico();
 }
 function registrarEdicao(grupo){
   const d=diagramaAtual();
@@ -1873,6 +1908,7 @@ function registrarEdicao(grupo){
     if(historico.antes.length>80) historico.antes.shift();
   }
   historico.atual=atual; historico.grupo=grupo; historico.depois.length=0;
+  atualizarBotoesHistorico();
 }
 function restaurarEdicao(refazer){
   const h=historico,d=diagramaAtual();
@@ -1880,6 +1916,7 @@ function restaurarEdicao(refazer){
   const origem=refazer?h.depois:h.antes, destino=refazer?h.antes:h.depois;
   if(!origem.length) return;
   destino.push(h.atual); h.atual=origem.pop(); h.grupo=null;
+  atualizarBotoesHistorico();
   Object.assign(d,JSON.parse(h.atual));
   estado.selecionados.clear(); estado.setaSelecionada=null;
   estado.origemConexao=null; estado.ancoraOrigem=null;
