@@ -18,6 +18,7 @@ const estado={
   selecionados:new Set(),
   setaSelecionada:null,
   origemConexao:null,
+  ancoraOrigem:null,
   zoom:1,
   _idSeq:1
 };
@@ -399,16 +400,53 @@ function ancoras(no,grupo,w,h){
     inferior:{x:cx,y:no.y+inferior}, esquerda:{x:no.x+esquerda,y:cy}
   };
 }
-function parAncoras(aa,ba){
-  const cand=[["topo","inferior"],["inferior","topo"],["esquerda","direita"],["direita","esquerda"],
-              ["topo","direita"],["direita","topo"],["inferior","esquerda"],["esquerda","inferior"]];
-  let melhor=null, menor=Infinity;
-  for(const [x,y] of cand){
-    const p=aa[x], q=ba[y];
-    const d=Math.hypot(p.x-q.x,p.y-q.y);
-    if(d<menor){menor=d;melhor={origem:x,destino:y,p1:p,p2:q};}
+const ladosAtividade=["topo","direita","inferior","esquerda"];
+
+// Preserva as âncoras salvas e atribui as livres mais próximas às setas antigas.
+function conexoesAtividade(d,pontosPorNo){
+  const uso=new Map(), caminhos=new Map();
+  let alterado=false;
+  for(const id of pontosPorNo.keys()) uso.set(id,{topo:0,direita:0,inferior:0,esquerda:0});
+  for(const s of d.seta){
+    if(ladosAtividade.includes(s.ancoraDe)) uso.get(s.de)[s.ancoraDe]++;
+    if(ladosAtividade.includes(s.ancoraPara)) uso.get(s.para)[s.ancoraPara]++;
   }
-  return melhor;
+  function candidatos(id,fixo){
+    if(ladosAtividade.includes(fixo)) return [fixo];
+    const contagem=uso.get(id);
+    // Blocos antigos acima do limite mantêm as conexões, dividindo os pontos.
+    const minimo=Math.min(...Object.values(contagem));
+    return ladosAtividade.filter(lado=>contagem[lado]===minimo);
+  }
+  for(const s of d.seta){
+    const aa=pontosPorNo.get(s.de), bb=pontosPorNo.get(s.para);
+    const destinos=candidatos(s.para,s.ancoraPara);
+    let menor=Infinity, origem, destino;
+    for(const a of candidatos(s.de,s.ancoraDe)){
+      for(const b of destinos){
+        const distancia=Math.hypot(aa[a].x-bb[b].x,aa[a].y-bb[b].y);
+        if(distancia<menor){menor=distancia; origem=a; destino=b;}
+      }
+    }
+    if(s.ancoraDe!==origem){s.ancoraDe=origem; uso.get(s.de)[origem]++; alterado=true;}
+    if(s.ancoraPara!==destino){s.ancoraPara=destino; uso.get(s.para)[destino]++; alterado=true;}
+    caminhos.set(s.id,{p1:aa[origem],p2:bb[destino]});
+  }
+  if(alterado) salvarLocal();
+  return caminhos;
+}
+
+function pontoDisponivel(d,id,lado){
+  const ligadas=d.seta.filter(s=>s.de===id || s.para===id);
+  if(ligadas.length>=4){
+    toast("Este bloco já tem quatro conexões.","erro");
+    return false;
+  }
+  if(lado && ligadas.some(s=>(s.de===id?s.ancoraDe:s.ancoraPara)===lado)){
+    toast("Esse ponto já está conectado. Escolha outro ponto azul.","erro");
+    return false;
+  }
+  return true;
 }
 /* Centro da caixa de âncoras de um nó (centro geométrico da caixa delimitadora).
    Os pontos de âncora já estão em coordenadas mundiais, então o centro é a média. */
@@ -593,16 +631,6 @@ function render(){
       });
       g.appendChild(texto);
     }
-  if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
-    for(const k of ["topo","direita","inferior","esquerda"]){
-      const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
-      circ.setAttribute("class","ancora");
-      circ.setAttribute("cx",aa[k].x-no.x);
-      circ.setAttribute("cy",aa[k].y-no.y);
-      circ.setAttribute("r",6);
-      g.appendChild(circ);
-    }
-  }
   // área de clique: cobre todo o box do bloco (transparente) — permite clicar e
   // arrastar em qualquer ponto do bloco, inclusive em áreas vazias da figura do ator
   const hit=document.createElementNS("http://www.w3.org/2000/svg","rect");
@@ -611,6 +639,18 @@ function render(){
   hit.setAttribute("width",w); hit.setAttribute("height",h);
   hit.setAttribute("rx",4);
   g.appendChild(hit);
+  if(estado.ferramenta==="conectar"||estado.selecionados.has(no.id)){
+    for(const k of ladosAtividade){
+      const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      circ.setAttribute("class","ancora");
+      if(d.tipo==="atividades") circ.dataset.ancora=k;
+      circ.setAttribute("cx",aa[k].x-no.x);
+      circ.setAttribute("cy",aa[k].y-no.y);
+      circ.setAttribute("r",6);
+      g.appendChild(circ);
+    }
+  }
+
   // retângulo invisível ao redor do ator: envolve a figura (topo da cabeça, pontas
   // dos braços, base das pernas) — guia de alinhamento das âncoras (não é visível)
   if(no.tipo==="ator"){
@@ -638,7 +678,7 @@ function render(){
   const camadaRotulos=document.getElementById("camadaRotulos");
   camadaRotulos.replaceChildren();
   const ocupados=[];
-  const fanout=calcularFanout(d,pontosPorNo);
+  const fanout=d.tipo==="atividades" ? conexoesAtividade(d,pontosPorNo) : calcularFanout(d,pontosPorNo);
   for(const s of d.seta){
     const par=fanout.get(s.id);
     if(!par) continue;
@@ -751,14 +791,20 @@ function selecionarSeta(s){
 function clickNo(no,ev){
   if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
   if(estado.ferramenta==="conectar"){
+    const d=diagramaAtual();
+    const lado=ev.target?.dataset?.ancora;
     if(!estado.origemConexao){
+      if(d.tipo==="atividades" && !pontoDisponivel(d,no.id,lado)) return;
+      estado.ancoraOrigem=lado;
       estado.origemConexao=no.id; render();
-      toast("Bloco origem definido. Clique no bloco de destino para criar a seta.","sucesso");
+      toast(d.tipo==="atividades" ? "Escolha um ponto azul livre ou clique no bloco de destino." :
+        "Bloco origem definido. Clique no bloco de destino para criar a seta.","sucesso");
     }else if(estado.origemConexao===no.id){
       estado.origemConexao=null; render();
     }else{
-      adicionarSeta(estado.origemConexao,no.id);
-      estado.origemConexao=null;
+      const de=estado.origemConexao;
+      if(d.tipo!=="atividades") estado.origemConexao=null;
+      adicionarSeta(de,no.id,estado.ancoraOrigem,lado);
     }
     return;
   }
@@ -862,11 +908,17 @@ function posicionarInline(){
   inlineEdit.input.style.left=p.x+"px";
   inlineEdit.input.style.top=(p.y - ih/2)+"px";
 }
-function adicionarSeta(de,para){
+function adicionarSeta(de,para,ancoraDe,ancoraPara){
   const d=diagramaAtual();
   if(de===para){ toast("Não é possível conectar um bloco a ele mesmo.","erro"); return;}
   if(d.seta.some(s=>s.de===de&&s.para===para)){ toast("Esta conexão já existe.","erro"); return;}
-  d.seta.push({id:novoId(),de,para,tipo:estado.tipoConexao,rotulo:""});
+  const atividade=d.tipo==="atividades";
+  if(atividade && (!pontoDisponivel(d,de,ancoraDe) || !pontoDisponivel(d,para,ancoraPara))) return;
+  const seta={id:novoId(),de,para,tipo:estado.tipoConexao,rotulo:""};
+  if(atividade){seta.ancoraDe=ancoraDe; seta.ancoraPara=ancoraPara;}
+  d.seta.push(seta);
+  estado.origemConexao=null;
+  estado.ancoraOrigem=null;
   salvarLocal(); render();
   toast("Seta criada ✓","sucesso");
 }
