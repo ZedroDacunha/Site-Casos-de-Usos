@@ -462,139 +462,6 @@ function parEncaixe(aa,a,bb,b){
 function caminhoReto(p1,p2){
   return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
 }
-/* Caixa delimitadora de um nó (para checar se uma linha passaria por dentro dele) */
-function boxDoNo(no){
-  const {w,h}=dimsPadrao(no.tipo);
-  return {x:no.x, y:no.y, w, h};
-}
-/* O segmento p1-p2 cruza o INTERIOR de alguma das caixas? (Liang-Barsky)
-   Apenas tocar a borda não conta — a linha pode passar rente ao canto. */
-function alcançaCaixa(p1,p2,obs){
-  const dx=p2.x-p1.x, dy=p2.y-p1.y;
-  for(const o of obs){
-    let t0=0, t1=1, ok=true;
-    const p=[-dx,dx,-dy,dy];
-    const q=[p1.x-o.x, (o.x+o.w)-p1.x, p1.y-o.y, (o.y+o.h)-p1.y];
-    for(let i=0;i<4;i++){
-      if(p[i]===0){ if(q[i]<0){ok=false;break;} }
-      else{
-        const r=q[i]/p[i];
-        if(p[i]<0){ if(r>t1){ok=false;break;} if(r>t0)t0=r; }
-        else{ if(r<t0){ok=false;break;} if(r<t1)t1=r; }
-      }
-    }
-    if(ok && t1-t0>1e-6) return true;
-  }
-  return false;
-}
-/* Simplifica um polígono removendo pontos colineares (canto reto sem curva) */
-function simplificaCollinear(pts){
-  if(pts.length<3) return pts.slice();
-  const out=[pts[0]];
-  for(let i=1;i<pts.length-1;i++){
-    const a=out[out.length-1], b=pts[i], c=pts[i+1];
-    const cross=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
-    if(Math.abs(cross)>0.5) out.push(b);
-  }
-  out.push(pts[pts.length-1]);
-  return out;
-}
-/* Roteamento ortogonal por grade (A*): caminho em linhas retas horizontais/verticais
-   que passa ao redor das caixas. A grade cobre o envelope de todos os obstáculos
-   com margem; célula bloqueada = centro dentro de uma caixa. */
-function roteamentoOrtogonal(p1,p2,obs){
-  const CELL=18, MARGEM=48;
-  let minX=Math.min(p1.x,p2.x), maxX=Math.max(p1.x,p2.x);
-  let minY=Math.min(p1.y,p2.y), maxY=Math.max(p1.y,p2.y);
-  for(const o of obs){
-    minX=Math.min(minX,o.x); maxX=Math.max(maxX,o.x+o.w);
-    minY=Math.min(minY,o.y); maxY=Math.max(maxY,o.y+o.h);
-  }
-  minX-=MARGEM; minY-=MARGEM; maxX+=MARGEM; maxY+=MARGEM;
-  const cols=Math.max(2,Math.ceil((maxX-minX)/CELL));
-  const rows=Math.max(2,Math.ceil((maxY-minY)/CELL));
-  const N=cols*rows;
-  const bloqueado=new Uint8Array(N);
-  for(let j=0;j<rows;j++) for(let i=0;i<cols;i++){
-    const cx=minX+(i+0.5)*CELL, cy=minY+(j+0.5)*CELL;
-    for(const o of obs){
-      if(cx>=o.x && cx<=o.x+o.w && cy>=o.y && cy<=o.y+o.h){ bloqueado[j*cols+i]=1; break; }
-    }
-  }
-  const ci=v=>Math.max(0,Math.min(cols-1,Math.floor((v-minX)/CELL)));
-  const cj=v=>Math.max(0,Math.min(rows-1,Math.floor((v-minY)/CELL)));
-  const si=ci(p1.x), sj=cj(p1.y), ti=ci(p2.x), tj=cj(p2.y);
-  bloqueado[sj*cols+si]=0; bloqueado[tj*cols+ti]=0; // âncoras estão fora das caixas
-  const start=sj*cols+si, goal=tj*cols+ti;
-  if(start===goal) return [p1,p2];
-  const g=new Float64Array(N).fill(Infinity);
-  const f=new Float64Array(N).fill(Infinity);
-  const prev=new Int32Array(N).fill(-1);
-  const fechado=new Uint8Array(N);
-  g[start]=0; f[start]=Math.abs(si-ti)+Math.abs(sj-tj);
-  const abertos=[start];
-  let alcancado=false;
-  while(abertos.length){
-    let bi=0;
-    for(let i=1;i<abertos.length;i++) if(f[abertos[i]]<f[abertos[bi]]) bi=i;
-    const u=abertos.splice(bi,1)[0];
-    if(u===goal){ alcancado=true; break; }
-    fechado[u]=1;
-    const ui=u%cols, uj=(u-ui)/cols;
-    for(const [di,dj] of [[1,0],[-1,0],[0,1],[0,-1]]){
-      const vi=ui+di, vj=uj+dj;
-      if(vi<0||vi>=cols||vj<0||vj>=rows) continue;
-      const v=vj*cols+vi;
-      if(bloqueado[v]||fechado[v]) continue;
-      const ng=g[u]+1;
-      if(ng<g[v]){
-        g[v]=ng; f[v]=ng+Math.abs(vi-ti)+Math.abs(vj-tj); prev[v]=u;
-        if(!abertos.includes(v)) abertos.push(v);
-      }
-    }
-  }
-  if(!alcancado) return null;
-  const cels=[];
-  for(let c=goal; c!==-1; c=prev[c]){ cels.push(c); if(c===start) break; }
-  cels.reverse();
-  const pts=cels.map(c=>{
-    const i=c%cols, j=(c-i)/cols;
-    return {x:minX+(i+0.5)*CELL, y:minY+(j+0.5)*CELL};
-  });
-  pts[0]=p1; pts[pts.length-1]=p2; // âncoras exatas
-  return simplificaCollinear(pts);
-}
-/* Ponto médio DO CAMINHODESSENHADO (ao longo do comprimento do polígono) — usado
-   para posicionar o rótulo no meio da seta mesmo em roteamento com várias curvas */
-function pontoMeioPolina(pts){
-  if(pts.length<2) return pts[0]||{x:0,y:0};
-  let total=0;
-  for(let i=1;i<pts.length;i++) total+=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
-  let acc=0;
-  for(let i=1;i<pts.length;i++){
-    const dx=pts[i].x-pts[i-1].x, dy=pts[i].y-pts[i-1].y;
-    const d=Math.hypot(dx,dy);
-    if(acc+d>=total/2){
-      const t=d>0?(total/2-acc)/d:0;
-      return {x:pts[i-1].x+dx*t, y:pts[i-1].y+dy*t};
-    }
-    acc+=d;
-  }
-  return {x:pts[pts.length-1].x, y:pts[pts.length-1].y};
-}
-/* Caminho de conexão entre p1 e p2 que EVITA PASSAR POR DENTRO das caixas dos
-   outros blocos (obstaculos): se a reta não cruza nenhuma caixa, usa a reta;
-   senão, faz o roteamento ortogonal em grade, que passa ao redor das caixas.
-   Retorna {d: string SVG, pontos: polígono} — pontos servem para a cabeça da
-   seta (último segmento) e para o rótulo (ponto médio do caminho). */
-function caminhoConexao(p1,p2,obstaculos){
-  const obs=(obstaculos||[]).filter(Boolean);
-  if(!obs.length || !alcançaCaixa(p1,p2,obs)) return {d:caminhoReto(p1,p2), pontos:[p1,p2]};
-  const pts=roteamentoOrtogonal(p1,p2,obs);
-  if(!pts) return {d:caminhoReto(p1,p2), pontos:[p1,p2]};
-  const r=n=>Math.round(n*100)/100;
-  return {d:`M ${pts.map(p=>`${r(p.x)} ${r(p.y)}`).join(" L ")}`, pontos:pts};
-}
 /* Cabeça (ponta) da seta como triângulo SÓLIDO (não vazada): a ponta fica em p2 e
     a base atrás, na direção de p1->p2. Desenhada numa camada ABAIXO das linhas das
     setas, para a cabeça ser sólida e as linhas que cruzam por ela ficarem visíveis
@@ -769,26 +636,18 @@ function render(){
     const a=d.no.find(n=>n.id===s.de), b=d.no.find(n=>n.id===s.para);
     if(!a||!b) continue;
     const par=fanout.get(s.id)||parEncaixe(pontosPorNo.get(a.id),a,pontosPorNo.get(b.id),b);
-    // caixas que a linha NÃO deve atravessar: todos os blocos, exceto a origem e
-    // o destino (o limite do sistema é uma moldura — a linha pode cruzá-lo,
-    // não é um obstáculo a contornar). Se a reta passaria por dentro de alguma
-    // caixa, o roteamento passa ao redor dela (não fica atravessando a caixa).
-    const obs=d.no.filter(n=>n.id!==s.de&&n.id!==s.para&&n.tipo!=="limite").map(boxDoNo);
-    const rota=caminhoConexao(par.p1,par.p2,obs);
-    const dPath=rota.d;
+    const dPath=caminhoReto(par.p1,par.p2);
     const sel=estado.setaSelecionada===s.id;
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
     const marca=vazio?`<<${s.tipo}>>`:"";
-    const meio=pontoMeioPolina(rota.pontos);
+    const meio={x:(par.p1.x+par.p2.x)/2, y:(par.p1.y+par.p2.y)/2};
     const lblX=meio.x, lblY=meio.y;
     // cabeça sólida da seta, desenhada ABAIXO das linhas (camada de fundo), para a
-    // ponta não ser vazada e as linhas que cruzam por ela ficarem visíveis.
-    // A ponta aponta na direção do último segmento do caminho roteado.
+    // ponta não ser vazada e as linhas que cruzam por ela ficarem visíveis
     if(!semSeta){
-      const ant=rota.pontos[rota.pontos.length-2]||par.p1;
       const pol=document.createElementNS("http://www.w3.org/2000/svg","polygon");
-      pol.setAttribute("points",cabecaSeta(ant,rota.pontos[rota.pontos.length-1]));
+      pol.setAttribute("points",cabecaSeta(par.p1,par.p2));
       pol.setAttribute("class","seta-cabeca"+(sel?" selecionada":""));
       camadaSetasFundo.appendChild(pol);
     }
