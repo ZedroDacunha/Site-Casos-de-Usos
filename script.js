@@ -595,6 +595,49 @@ function caminhoConexao(p1,p2,obstaculos){
   const r=n=>Math.round(n*100)/100;
   return {d:`M ${pts.map(p=>`${r(p.x)} ${r(p.y)}`).join(" L ")}`, pontos:pts};
 }
+/* Quebra o caminho (polígono) deixando um GAP onde fica a caixa do rótulo, para a
+   linha NÃO atravessar o rótulo (<<extend>>, <<include>>, rótulo customizado) —
+   fica legível: a linha é interrompida no box do rótulo, não passa por ele.
+   A caixa do rótulo é expandida numa pequena margem para o gap ser maior que o box. */
+function caminhoComGap(pts, box){
+  if(!box||pts.length<2) return null;
+  const EXP=2;
+  const bx=box.x-EXP, by=box.y-EXP, bw=box.w+2*EXP, bh=box.h+2*EXP;
+  // intervalo [t0,t1] do segmento p-q dentro da caixa (Liang-Barsky)
+  const clip=(p,q)=>{
+    let t0=0,t1=1,ok=true;
+    const dx=q.x-p.x, dy=q.y-p.y;
+    const pp=[-dx,dx,-dy,dy];
+    const qq=[p.x-bx,bx+bw-p.x,p.y-by,by+bh-p.y];
+    for(let i=0;i<4;i++){
+      if(pp[i]===0){ if(qq[i]<0){ok=false;break;} }
+      else{
+        const r=qq[i]/pp[i];
+        if(pp[i]<0){ if(r>t1){ok=false;break;} if(r>t0)t0=r; }
+        else{ if(r<t0){ok=false;break;} if(r<t1)t1=r; }
+      }
+    }
+    return ok&&t1-t0>1e-6?[t0,t1]:null;
+  };
+  const fora=p=>!(p.x>=bx&&p.x<=bx+bw&&p.y>=by&&p.y<=by+bh);
+  const pt=(p,q,t)=>({x:p.x+(q.x-p.x)*t, y:p.y+(q.y-p.y)*t});
+  const subs=[];
+  let cur=[pts[0]];
+  for(let i=0;i<pts.length-1;i++){
+    const p=pts[i], q=pts[i+1];
+    const cl=clip(p,q);
+    if(!cl){ if(fora(p)) cur.push(q); continue; }
+    const [t0,t1]=cl, entry=pt(p,q,t0), exit=pt(p,q,t1);
+    // p fora: fecha o subcaminho anterior na entrada do box
+    if(fora(p)){ cur.push(entry); if(cur.length>1) subs.push(cur); cur=[]; }
+    if(fora(q)){ cur.push(exit); cur.push(q); } // q fora: novo subcaminho sai do box e segue até q
+    else cur=[]; // q dentro: o segmento termina dentro; o próximo começa onde sair
+  }
+  if(cur.length>1) subs.push(cur);
+  if(!subs.length) return null;
+  const r=n=>Math.round(n*100)/100;
+  return subs.map(sub=>`M ${sub.map(p=>`${r(p.x)} ${r(p.y)}`).join(" L ")}`).join(" M ");
+}
 /* Cabeça (ponta) da seta como triângulo SÓLIDO (não vazada): a ponta fica em p2 e
     a base atrás, na direção de p1->p2. Desenhada numa camada ABAIXO das linhas das
     setas, para a cabeça ser sólida e as linhas que cruzam por ela ficarem visíveis
@@ -775,13 +818,25 @@ function render(){
     // caixa, o roteamento passa ao redor dela (não fica atravessando a caixa).
     const obs=d.no.filter(n=>n.id!==s.de&&n.id!==s.para&&n.tipo!=="limite").map(boxDoNo);
     const rota=caminhoConexao(par.p1,par.p2,obs);
-    const dPath=rota.d;
     const sel=estado.setaSelecionada===s.id;
     const vazio=s.tipo==="include"||s.tipo==="extend";
     const semSeta=s.tipo==="geralizacao";
     const marca=vazio?`<<${s.tipo}>>`:"";
     const meio=pontoMeioPolina(rota.pontos);
     const lblX=meio.x, lblY=meio.y;
+    // caixa do rótulo (<<extend>>/<<include>> + rótulo customizado): a linha
+    // é INTERROMPIDA nela (gap), para não atravessar o rótulo e ficar legível.
+    let boxRótulo=null;
+    if(marca||(s.rotulo&&s.rotulo.trim())){
+      const r1=marca?{x:lblX-marca.length*2.4-4, y:lblY-7, w:marca.length*4.8+8, h:14}:null;
+      const r2=(s.rotulo&&s.rotulo.trim())?{x:lblX-s.rotulo.length*3.6-6, y:lblY-22, w:s.rotulo.length*7.2+12, h:18}:null;
+      if(r1&&r2){
+        const x0=Math.min(r1.x,r2.x), y0=Math.min(r1.y,r2.y);
+        boxRótulo={x:x0, y:y0, w:Math.max(r1.x+r1.w,r2.x+r2.w)-x0, h:Math.max(r1.y+r1.h,r2.y+r2.h)-y0};
+      }else boxRótulo=r1||r2;
+    }
+    const dPath=rota.d; // área de clique contínua (clicar em qualquer ponto da linha seleciona)
+    const dPathVis=boxRótulo?(caminhoComGap(rota.pontos,boxRótulo)||rota.d):rota.d;
     // cabeça sólida da seta, desenhada ABAIXO das linhas (camada de fundo), para a
     // ponta não ser vazada e as linhas que cruzam por ela ficarem visíveis.
     // A ponta aponta na direção do último segmento do caminho roteado.
@@ -793,7 +848,7 @@ function render(){
       camadaSetasFundo.appendChild(pol);
     }
     let html=`<path class="conector-hit" d="${dPath}"/>`;
-    html+=`<path class="conector ${sel?"selecionado":""}" d="${dPath}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
+    html+=`<path class="conector ${sel?"selecionado":""}" d="${dPathVis}" ${s.tipo==="geralizacao"||vazio?'stroke-dasharray="6 5"':""}/>`;
     if(marca) html+=`<rect class="conector-caixa" x="${lblX-marca.length*2.4-4}" y="${lblY-7}" width="${marca.length*4.8+8}" height="14" rx="4"/>
                      <text class="conector-marca-pequena ${s.tipo}" x="${lblX}" y="${lblY+3.5}" text-anchor="middle">${esc(marca)}</text>`;
     if(s.rotulo&&s.rotulo.trim()){
