@@ -1,17 +1,30 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="41">
+<html lang="pt-BR" data-theme="light" data-version="42">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=41">
+<link rel="stylesheet" href="style.css?v=42">
 </head>
 <body>
 
 <!-- ============ Cabeçalho ============ -->
 <header class="topo">
   <div class="logo"><span class="icone"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h8v12h6"/><rect x="2" y="3" width="6" height="6" rx="1.5"/><rect x="16" y="15" width="6" height="6" rx="1.5"/></svg></span><span>Editor de Diagramas</span></div>
+  <div class="editor-bar">
+    <button class="btn btn-secundario" aria-label="Voltar à biblioteca" id="btnVoltar" type="button" title="Voltar à tela inicial"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg><span>Biblioteca</span></button>
+    <input class="titulo" id="tituloDiagrama" title="Renomear diagrama" type="text" maxlength="80" placeholder="Nome do diagrama" aria-label="Nome do diagrama">
+    <details class="menu-diagrama" id="menuDiagrama">
+      <summary class="fbtn">Arquivo</summary>
+      <div class="menu-acoes">
+        <button id="btnExportarSVG" type="button">Exportar SVG</button>
+        <button id="btnExportarPNG" type="button">Exportar PNG</button>
+        <button id="btnExportarDOCX" type="button" title="Exportar o diagrama como documento Word (.docx), com a imagem do diagrama">Exportar Word (.docx)</button>
+        <button id="ferrLimpar" type="button">Limpar diagrama…</button>
+      </div>
+    </details>
+  </div>
   <div class="topo-espaço"></div>
   <div class="topo-acoes">
     <button class="btn btn-secundario" id="btnTema" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro ou escuro"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor"/></svg></button>
@@ -25,62 +38,55 @@
       <h1 id="tituloCriar">Criar um diagrama</h1>
       <div class="modelos">
         <button class="modelo modelo-casos" type="button" data-criar="casos">
-          <span class="modelo-arte"><svg viewBox="0 0 250 110" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M80 55 158 31M80 58l78 25"/><g class="papel"><ellipse cx="182" cy="27" rx="30" ry="13"/><ellipse cx="182" cy="86" rx="30" ry="13"/></g><circle cx="64" cy="35" r="8" class="papel"/><path d="M64 43v24m-15-13h30m-15 13L53 85m11-18 11 18"/></svg></span>
+          <span class="modelo-arte"><svg viewBox="0 0 320 130" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M71 56 145 38M71 56 145 89"/><g class="papel"><ellipse cx="204" cy="36" rx="60" ry="21"/><ellipse cx="204" cy="91" rx="62" ry="21"/></g><circle class="papel" cx="55" cy="36" r="9"/><path d="M55 45v28m-16-17h32m-16 17L42 91m13-18 13 18"/><g class="legenda"><text x="55" y="109">Cliente</text><text x="204" y="40">Consultar pedido</text><text x="204" y="95">Pagar pedido</text></g></svg></span>
           <span class="modelo-corpo"><strong>Casos de uso</strong><span>Relacione atores e funcionalidades.</span></span>
-          <span class="modelo-seta"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+          <span class="modelo-adicionar" aria-hidden="true">+</span>
         </button>
         <button class="modelo modelo-atividades" type="button" data-criar="atividades">
-          <span class="modelo-arte"><svg viewBox="0 0 250 110" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M40 54h42m40 0h18V27h27m-27 27v28h27"/><circle cx="34" cy="54" r="7" fill="currentColor"/><path class="papel" d="m102 34 22 20-22 20-22-20Z"/><g class="papel"><rect x="168" y="15" width="50" height="23" rx="5"/><rect x="168" y="71" width="50" height="23" rx="5"/></g></svg></span>
+          <span class="modelo-arte"><svg viewBox="0 0 320 130" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M43 64h31m78 0h33m18-18V31h42m-42 51v16h42"/><path d="m69 60 5 4-5 4m111-8 5 4-5 4M240 27l5 4-5 4m0 59 5 4-5 4"/><circle cx="33" cy="64" r="10" fill="currentColor"/><g class="papel"><rect x="75" y="49" width="77" height="30" rx="6"/><path d="m185 64 18-18 18 18-18 18Z"/><rect x="245" y="19" width="54" height="25" rx="6"/><rect x="245" y="86" width="54" height="25" rx="6"/></g><g class="legenda"><text x="113" y="68">Validar</text><text x="272" y="35">Aceitar</text><text x="272" y="103">Revisar</text></g></svg></span>
           <span class="modelo-corpo"><strong>Atividades</strong><span>Desenhe ações, decisões e fluxos.</span></span>
-          <span class="modelo-seta"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+          <span class="modelo-adicionar" aria-hidden="true">+</span>
         </button>
         <button class="modelo modelo-roteiro" type="button" data-criar="roteiro">
-          <span class="modelo-arte"><svg viewBox="0 0 250 110" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M88 43h31v28h34m-6-5 6 5-6 5"/><g class="papel"><rect x="25" y="18" width="64" height="47" rx="5"/><rect x="155" y="49" width="64" height="47" rx="5"/></g><path d="M25 31h64m66 31h64m-184-8h25m104 28h23"/></svg></span>
+          <span class="modelo-arte"><svg viewBox="0 0 320 130" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><g class="papel"><rect x="29" y="20" width="106" height="68" rx="7"/><rect x="179" y="45" width="106" height="68" rx="7"/></g><path d="M29 38h106m44 25h106m-150-6h23v22h21m-5-5 5 5-5 5"/><g fill="currentColor" stroke="none"><circle cx="40" cy="29" r="2"/><circle cx="48" cy="29" r="2"/><circle cx="190" cy="54" r="2"/><circle cx="198" cy="54" r="2"/></g><g class="legenda"><text x="82" y="66">Catálogo</text><text x="232" y="90">Detalhes</text></g></svg></span>
           <span class="modelo-corpo"><strong>Roteiro</strong><span>Conecte telas e etapas de navegação.</span></span>
-          <span class="modelo-seta"><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+          <span class="modelo-adicionar" aria-hidden="true">+</span>
         </button>
       </div>
     </section>
-    <section aria-labelledby="tituloColecao" class="colecao">
-      <div class="colecao-cabeca">
-        <h2 id="tituloColecao">Meus diagramas</h2>
+    <section class="biblioteca" aria-labelledby="tituloBiblioteca">
+      <div class="biblioteca-topo">
+        <h2 id="tituloBiblioteca">Minha biblioteca</h2>
         <div class="arquivos">
           <button class="fbtn" id="btnImportarJSON" type="button">Importar JSON</button>
           <button class="fbtn" id="btnExportarJSON" type="button" title="Exportar todos os diagramas em um arquivo JSON">Exportar JSON</button>
           <input type="file" id="arquivoJSON" accept="application/json,.json" hidden>
         </div>
       </div>
-      <label class="busca" id="grupoBusca" hidden><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="buscaDiagramas" type="search" placeholder="Buscar diagrama pelo nome" aria-label="Buscar diagrama pelo nome"></label>
-      <div class="lista-diagramas" id="listaDiagramas"></div>
-      <div class="vazio" id="vazioDiagramas" role="status"></div>
-    </section>
-    <section aria-labelledby="tituloProjetos" class="colecao">
-      <div class="colecao-cabeca">
-        <h2 id="tituloProjetos">Projetos</h2>
-        <button class="btn btn-primario" id="novoProjeto" type="button">＋ Criar projeto</button>
+      <div class="abas" role="tablist" aria-label="Coleções da biblioteca">
+        <button id="abaDiagramas" type="button" role="tab" aria-selected="true" aria-controls="colecaoDiagramas">Diagramas <span id="totalDiagramas">0</span></button>
+        <button id="abaProjetos" type="button" role="tab" aria-selected="false" aria-controls="colecaoProjetos" tabindex="-1">Projetos <span id="totalProjetos">0</span></button>
       </div>
-      <div class="lista-diagramas" id="listaProjetos"></div>
-      <p class="vazio" id="semProjetos">Reúna os diagramas de um trabalho e exporte tudo em um único PDF.</p>
-      <p id="progressoPDF" role="status" hidden></p>
+      <div class="colecao" id="colecaoDiagramas" role="tabpanel" aria-labelledby="abaDiagramas" tabindex="0">
+        <label class="busca" id="grupoBusca" hidden><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input id="buscaDiagramas" type="search" placeholder="Buscar diagrama pelo nome" aria-label="Buscar diagrama pelo nome"></label>
+        <div class="lista-diagramas" id="listaDiagramas"></div>
+        <div class="vazio" id="vazioDiagramas" role="status"></div>
+      </div>
+      <div class="colecao" id="colecaoProjetos" role="tabpanel" aria-labelledby="abaProjetos" tabindex="0" hidden>
+        <div class="colecao-cabeca">
+          <p class="descricao-projetos">Organize os diagramas na ordem do seu PDF.</p>
+          <button class="btn btn-primario" id="novoProjeto" type="button">Criar projeto</button>
+        </div>
+        <div class="lista-diagramas" id="listaProjetos"></div>
+        <p class="vazio" id="semProjetos">Seus projetos aparecerão aqui.</p>
+        <p id="progressoPDF" role="status" hidden></p>
+      </div>
     </section>
   </div>
 </div>
 
 <!-- ============ Tela do editor ============ -->
 <div class="tela" id="telaEditor">
-  <div class="editor-bar">
-    <button class="btn btn-secundario" id="btnVoltar" type="button" title="Voltar à tela inicial">← Diagramas</button>
-    <input class="titulo" id="tituloDiagrama" title="Renomear diagrama" type="text" maxlength="80" placeholder="Nome do diagrama" aria-label="Nome do diagrama">
-    <details class="menu-diagrama" id="menuDiagrama">
-      <summary class="fbtn">Arquivo</summary>
-      <div class="menu-acoes">
-        <button id="btnExportarSVG" type="button">Exportar SVG</button>
-        <button id="btnExportarPNG" type="button">Exportar PNG</button>
-        <button id="btnExportarDOCX" type="button" title="Exportar o diagrama como documento Word (.docx), com a imagem do diagrama">📄 Exportar DOCX</button>
-        <button id="ferrLimpar" type="button">Limpar diagrama…</button>
-      </div>
-    </details>
-  </div>
   <div class="layout" id="layoutEditor">
     <aside id="painelBlocos" class="paleta" aria-labelledby="paletaTitulo">
       <h2 class="paleta-titulo" id="paletaTitulo">Blocos</h2>
@@ -106,6 +112,10 @@
         <label id="opcoesConexao" hidden>Tipo de conexão
           <select id="grupoConexoes"></select>
         </label>
+        <div class="historico-acoes" role="group" aria-label="Histórico">
+          <button class="fbtn" type="button" id="desfazer" title="Desfazer (Ctrl+Z)" aria-label="Desfazer" disabled><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11h10a6 6 0 0 1 0 12" transform="translate(0 -3)"/><path d="m9 3-5 5 5 5"/></svg></button>
+          <button class="fbtn" type="button" id="refazer" title="Refazer (Ctrl+Shift+Z)" aria-label="Refazer" disabled><svg class="icone-ui" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 8H10a6 6 0 0 0 0 12"/><path d="m15 3 5 5-5 5"/></svg></button>
+        </div>
         <div class="ferr-grupo zoom" role="group" aria-label="Zoom">
           <button class="fbtn" id="zoomOut" type="button" aria-label="Afastar">−</button>
           <button class="fbtn" id="zoomReset" type="button" title="Restaurar zoom de 100%" aria-label="Restaurar zoom de 100%"><span id="zoomContador">100%</span></button>
@@ -205,6 +215,6 @@
 <div role="status" class="toast" id="toast"></div>
 
 <script src="projetos.js?v=35"></script>
-<script src="script.js?v=41"></script>
+<script src="script.js?v=42"></script>
 </body>
 </html>
