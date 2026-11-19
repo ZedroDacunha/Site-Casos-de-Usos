@@ -2,7 +2,25 @@
 
 // Coleções anteriores contêm apenas um array de diagramas.
 function dadosColecao(){
-  return estado.projetos.length ? {versao:2,diagramas:estado.diagramas,projetos:estado.projetos} : estado.diagramas;
+  return estado.projetos.length ? {versao:3,diagramas:estado.diagramas,projetos:estado.projetos} : estado.diagramas;
+}
+const tiposRequisito={RF:"Requisitos funcionais",RNF:"Requisitos não funcionais"};
+function codigoRequisito(r){
+  return r.tipo+"-"+String(r.numero).padStart(3,"0");
+}
+function lerRequisitos(lista=[]){
+  if(!Array.isArray(lista)) throw new Error("Lista de requisitos inválida");
+  const codigos=new Set();
+  return lista.map(r=>{
+    if(!r || !Object.hasOwn(tiposRequisito,r.tipo) || !Number.isSafeInteger(r.numero) ||
+       r.numero<1 || typeof r.descricao!=="string" || !r.descricao.trim()){
+      throw new Error("Requisito inválido");
+    }
+    const codigo=codigoRequisito(r);
+    if(codigos.has(codigo)) throw new Error("Código de requisito repetido");
+    codigos.add(codigo);
+    return {tipo:r.tipo,numero:r.numero,descricao:r.descricao.trim()};
+  });
 }
 function lerColecao(obj){
   const diagramas=Array.isArray(obj)?obj:obj?.diagramas;
@@ -14,7 +32,7 @@ function lerColecao(obj){
   const ids=new Set(diagramas.map(d=>d.id));
   return {diagramas,projetos:projetos.map(p=>{
     if(!p||typeof p.nome!=="string"||!p.id||!Array.isArray(p.diagramas)) throw new Error("Projeto inválido");
-    return {id:p.id,nome:p.nome,diagramas:[...new Set(p.diagramas.filter(id=>ids.has(id)))]};
+    return {id:p.id,nome:p.nome,requisitos:lerRequisitos(p.requisitos),diagramas:[...new Set(p.diagramas.filter(id=>ids.has(id)))]};
   })};
 }
 
@@ -37,14 +55,15 @@ function renderProjetos(){
     const card=document.createElement("article"); card.className="card-diag";
     const titulo=document.createElement("h3"); titulo.textContent=p.nome;
     const detalhes=document.createElement("p"); detalhes.className="meta";
-    detalhes.textContent=p.diagramas.length+(p.diagramas.length===1?" diagrama":" diagramas");
+    const totalReq=p.requisitos.length;
+    detalhes.textContent=quantidadeItens(p.diagramas.length,"diagrama","diagramas")+" · "+quantidadeItens(totalReq,"requisito","requisitos");
     const acoes=document.createElement("div"); acoes.className="arquivos";
     const pdf=botaoProjeto("Baixar PDF",()=>exportarProjeto(p));
-    pdf.disabled=exportandoProjeto||!p.diagramas.length;
+    pdf.disabled=exportandoProjeto||(!p.diagramas.length && !totalReq);
     acoes.append(botaoProjeto("Organizar",()=>abrirProjeto(p)),pdf);
     acoes.appendChild(botaoProjeto("Excluir",async ()=>{
-      const mensagem=p.diagramas.length
-        ? "A organização das páginas será excluída. Os diagramas continuarão disponíveis na biblioteca."
+      const mensagem=p.diagramas.length || totalReq
+        ? "Os requisitos e a organização das páginas deste projeto serão excluídos. Os diagramas continuarão disponíveis na biblioteca."
         : "Este projeto vazio será excluído permanentemente da biblioteca.";
       if(!await confirmarAcao("Excluir projeto?",p.nome||"Sem título",mensagem,"Excluir projeto")) return;
       const antes=estado.projetos;
@@ -58,11 +77,44 @@ function renderProjetos(){
   }
 }
 function abrirProjeto(projeto){
-  rascunhoProjeto=projeto?{...projeto,diagramas:[...projeto.diagramas]}:{id:novoId("P"),nome:"",diagramas:[]};
+  rascunhoProjeto=projeto?structuredClone(projeto):{id:novoId("P"),nome:"",diagramas:[],requisitos:[]};
+  document.getElementById("secaoRequisitos").open=false;
+  renderRequisitos();
   document.getElementById("tituloProjeto").textContent=projeto?"Organizar projeto":"Criar projeto";
   document.getElementById("nomeProjeto").value=rascunhoProjeto.nome;
   renderPaginasProjeto(); dialogoProjeto.showModal();
   document.getElementById("nomeProjeto").focus();
+}
+function renderRequisitos(){
+  const requisitos=rascunhoProjeto.requisitos;
+  for(const tipo of Object.keys(tiposRequisito)){
+    const lista=document.getElementById("lista"+tipo);
+    lista.replaceChildren();
+    for(const r of requisitos.filter(item=>item.tipo===tipo)){
+      const item=document.createElement("li"),rotulo=document.createElement("label");
+      const codigo=codigoRequisito(r),campo=document.createElement("textarea");
+      campo.id="requisito-"+codigo; rotulo.htmlFor=campo.id; rotulo.textContent=codigo;
+      campo.rows=2; campo.value=r.descricao;
+      campo.placeholder=tipo==="RF"?"Ex.: Permitir que o cliente consulte seus pedidos.":
+        "Ex.: Exibir os pedidos em até 2 segundos.";
+      campo.addEventListener("input",()=>{r.descricao=campo.value;campo.setCustomValidity("");});
+      const remover=botaoProjeto("Remover",async ()=>{
+        if(r.descricao.trim() && !await confirmarAcao("Remover requisito?",codigo,"A remoção será aplicada ao salvar o projeto.","Remover requisito")) return;
+        requisitos.splice(requisitos.indexOf(r),1); renderRequisitos();
+        document.querySelector('[data-adicionar-requisito="'+tipo+'"]').focus();
+      },"Remover "+codigo);
+      item.append(rotulo,remover,campo); lista.appendChild(item);
+    }
+  }
+}
+for(const botao of document.querySelectorAll("[data-adicionar-requisito]")){
+  botao.addEventListener("click",()=>{
+    const tipo=botao.dataset.adicionarRequisito;
+    const maior=rascunhoProjeto.requisitos.reduce((n,r)=>r.tipo===tipo?Math.max(n,r.numero):n,0);
+    const requisito={tipo,numero:maior+1,descricao:""};
+    rascunhoProjeto.requisitos.push(requisito); renderRequisitos();
+    document.getElementById("requisito-"+codigoRequisito(requisito)).focus();
+  });
 }
 function renderPaginasProjeto(){
   const ids=rascunhoProjeto.diagramas;
@@ -101,6 +153,15 @@ document.getElementById("formProjeto").addEventListener("submit",ev=>{
   const campo=document.getElementById("nomeProjeto");
   rascunhoProjeto.nome=campo.value.trim();
   if(!rascunhoProjeto.nome){campo.value="";campo.reportValidity();return;}
+  for(const r of rascunhoProjeto.requisitos){
+    r.descricao=r.descricao.trim();
+    if(!r.descricao){
+      document.getElementById("secaoRequisitos").open=true;
+      const campo=document.getElementById("requisito-"+codigoRequisito(r));
+      campo.setCustomValidity("Descreva o requisito ou remova este campo.");
+      campo.focus();campo.reportValidity();return;
+    }
+  }
   const antes=estado.projetos;
   const existe=antes.some(p=>p.id===rascunhoProjeto.id);
   estado.projetos=existe?antes.map(p=>p.id===rascunhoProjeto.id?rascunhoProjeto:p):[...antes,rascunhoProjeto];
@@ -174,12 +235,64 @@ async function escreverTitulo(pdf,pagina,texto,fonte,tamanho,x,topo,largura){
   pagina.drawText(linha,{x,y:topo-tamanho,font:fonte,size:tamanho});
   return topo-tamanho-10;
 }
-async function montarPDF(lib,nome,paginas,obterImagem,progresso){
+// Quebra por palavras e admite identificadores maiores que uma linha.
+function* linhasRequisito(texto,largura,medir){
+  for(const paragrafo of texto.split(/\r\n|[\r\n]/)){
+    let linha="";
+    for(const palavra of paragrafo.trim().split(/\s+/)){
+      const candidata=linha?linha+" "+palavra:palavra;
+      if(medir(candidata)<=largura){linha=candidata;continue;}
+      if(linha) yield linha;
+      linha="";
+      for(const letra of palavra){
+        if(linha && medir(linha+letra)>largura){yield linha;linha="";}
+        linha+=letra;
+      }
+    }
+    yield linha;
+  }
+}
+async function escreverRequisitosPDF(pdf,nome,requisitos,formato,titulo,fonte){
+  const margem=36,tamanho=11,largura=formato[0]-2*margem;
+  const canvas=document.createElement("canvas").getContext("2d");
+  canvas.font=tamanho+"px sans-serif";
+  function medir(linha){
+    try{return fonte.widthOfTextAtSize(linha,tamanho);}
+    catch{return canvas.measureText(linha).width;}
+  }
+  let pagina,topo;
+  async function novaPagina(secao){
+    pagina=pdf.addPage(formato);
+    topo=await escreverTitulo(pdf,pagina,nome,fonte,10,margem,formato[1]-margem,largura);
+    topo=await escreverTitulo(pdf,pagina,secao,titulo,18,margem,topo,largura);
+  }
+  for(const [tipo,secao] of Object.entries(tiposRequisito)){
+    const grupo=requisitos.filter(r=>r.tipo===tipo);
+    if(!grupo.length) continue;
+    await novaPagina(secao);
+    for(const r of grupo){
+      const codigo=codigoRequisito(r);
+      if(topo<95) await novaPagina(secao);
+      topo=await escreverTitulo(pdf,pagina,codigo,titulo,11,margem,topo,largura);
+      for(const linha of linhasRequisito(r.descricao,largura-2,medir)){
+        if(topo<64){
+          await novaPagina(secao);
+          topo=await escreverTitulo(pdf,pagina,codigo+" (continuação)",titulo,11,margem,topo,largura);
+        }
+        await escreverTitulo(pdf,pagina,linha,fonte,tamanho,margem,topo,largura);
+        topo-=17;
+      }
+      topo-=10;
+    }
+  }
+}
+async function montarPDF(lib,nome,paginas,obterImagem,progresso,requisitos=[]){
   const pdf=await lib.PDFDocument.create();
   pdf.setTitle(nome);
   const titulo=await pdf.embedFont(lib.StandardFonts.HelveticaBold);
   const texto=await pdf.embedFont(lib.StandardFonts.Helvetica);
   const [curto,longo]=lib.PageSizes.A4, margem=36;
+  if(requisitos.length) await escreverRequisitosPDF(pdf,nome,requisitos,[curto,longo],titulo,texto);
   for(const [i,item] of paginas.entries()){
     progresso(i+1,paginas.length);
     const {w,h}=item.bb;
@@ -190,19 +303,20 @@ async function montarPDF(lib,nome,paginas,obterImagem,progresso){
     const imagem=await pdf.embedPng(await obterImagem(item));
     const base=margem+16, escala=Math.min(largura/w,(topo-base)/h);
     pagina.drawImage(imagem,{x:margem+(largura-w*escala)/2,y:topo-h*escala,width:w*escala,height:h*escala});
-    pagina.drawText((i+1)+" / "+paginas.length,{x:margem,y:22,size:9,font:texto});
   }
+  const folhas=pdf.getPages();
+  folhas.forEach((pagina,i)=>pagina.drawText((i+1)+" / "+folhas.length,{x:margem,y:22,size:9,font:texto}));
   return pdf.save();
 }
 async function exportarProjeto(projeto){
-  if(exportandoProjeto||!projeto.diagramas.length) return;
+  if(exportandoProjeto||(!projeto.diagramas.length && !projeto.requisitos.length)) return;
   exportandoProjeto=true; renderProjetos();
-  const status=document.getElementById("progressoPDF");status.hidden=false;status.textContent="Preparando diagramas…";
+  const status=document.getElementById("progressoPDF");status.hidden=false;status.textContent="Preparando documento…";
   try{
     const paginas=capturarPaginas(projeto);
     const bytes=await montarPDF(await carregarPDF(),projeto.nome,paginas,imagemDoDiagrama,(i,n)=>{
-      status.textContent="Gerando página "+i+" de "+n+"…";
-    });
+      status.textContent="Preparando diagrama "+i+" de "+n+"…";
+    },projeto.requisitos);
     download(nomeArquivo(projeto.nome,".pdf"),bytes,"application/pdf");
     toast("PDF do projeto exportado.","sucesso");
   }catch{
