@@ -153,7 +153,8 @@ function toast(msg,tipo){
 function diagramaAtual(){ return estado.diagramas.find(d=>d.id===estado.diagramaAtualId); }
 
 /* ---------- Persistência ---------- */
-function salvarLocal(){
+function salvarLocal(grupo=null){
+  registrarEdicao(grupo);
   try{
     localStorage.setItem(CHAVE_SAVE,JSON.stringify(dadosColecao()));
     return true;
@@ -282,9 +283,11 @@ function abrirDiagrama(id){
   document.getElementById("telaInicio").classList.remove("ativa");
   document.getElementById("telaEditor").classList.add("ativa");
   renderPaleta(); renderConexoes(); render();
+  iniciarHistorico(d);
   aplicarZoomVisual();
 }
 function voltarInicio(){
+  historico=null;
   estado.diagramaAtualId=null;
   estado.selecionados.clear(); estado.setaSelecionada=null; estado.origemConexao=null;
   document.getElementById("telaEditor").classList.remove("ativa");
@@ -618,10 +621,20 @@ function calcularFanout(d,pontosPorNo){
 
 /* Duas marcas próximas podem ser mais largas que o espaço entre as setas.
    Procura uma posição livre ao longo da própria conexão, começando pelo centro. */
-function posicionarRotulo(tracado,largura,comTexto,ocupados){
+function posicionarRotulo(tracado,largura,comTexto,ocupados,condicao=false){
   let melhor, menor=Infinity;
   for(const t of [.5,.35,.65,.2,.8]){
-    const {x,y}=tracado.ponto(t);
+    let {x,y}=tracado.ponto(t);
+    if(condicao){
+      // Mantém a condição acima da tangente local ou ao lado de uma saída vertical.
+      const a=tracado.ponto(t-.001),b=tracado.ponto(t+.001);
+      const dx=b.x-a.x,dy=b.y-a.y,comprimento=Math.hypot(dx,dy);
+      const sentido=dx===0 ? Math.sign(dy)||1 : Math.sign(dx);
+      const nx=comprimento ? sentido*dy/comprimento : 0;
+      const ny=comprimento ? -sentido*dx/comprimento : -1;
+      const distancia=Math.abs(nx)*largura/2+Math.abs(ny)*9+5;
+      x+=nx*distancia; y+=ny*distancia;
+    }
     const caixa={x1:x-largura/2-3,x2:x+largura/2+3,y1:y-(comTexto?32:10),y2:y+10};
     let area=0;
     for(const c of ocupados){
@@ -692,8 +705,25 @@ let gestoLinha=null;
 function setaAtual(){
   return diagramaAtual()?.seta.find(s=>s.id===estado.setaSelecionada);
 }
+const campoCondicao=document.getElementById("campoCondicao");
+function saidaDecisao(d,s){
+  return d.tipo==="atividades" && s && d.no.some(n=>n.id===s.de && n.tipo==="decisao");
+}
+campoCondicao.addEventListener("input",()=>{
+  const s=setaAtual();
+  if(!s) return;
+  s.rotulo=campoCondicao.value;
+  salvarLocal("condicao:"+s.id); render();
+});
+campoCondicao.addEventListener("keydown",ev=>{
+  if(ev.key==="Enter"){ev.preventDefault();svg.focus();}
+});
 function atualizarControlesLinha(d){
   const s=setaAtual(), tipos=TIPOS[d.tipo].conexoes;
+  const condicao=Boolean(saidaDecisao(d,s));
+  document.getElementById("grupoCondicao").hidden=!condicao;
+  if(condicao && campoCondicao.value!==(s.rotulo||"")) campoCondicao.value=s.rotulo||"";
+  if(condicao) document.getElementById("btnEditarTexto").hidden=true;
   document.getElementById("tipoLinhaGrupo").hidden=!s||tipos.length<2;
   if(s && tipos.length>1){
     if(tipoLinha.dataset.diagrama!==d.tipo){
@@ -906,7 +936,8 @@ function render(d=diagramaAtual(),paraPDF=false){
     let rotulos="";
     if(marca||texto){
       const larguraMarca=marca.length*5.5+10, larguraTexto=texto.length*7.2+12;
-      const {x,y}=posicionarRotulo(tracado,Math.max(larguraMarca,larguraTexto),Boolean(texto),ocupados);
+      const {x,y}=posicionarRotulo(tracado,Math.max(larguraMarca,larguraTexto),Boolean(texto),ocupados,
+        d.tipo==="atividades" && nosPorId.get(s.de)?.tipo==="decisao");
       if(marca) rotulos+=`<rect class="conector-caixa" x="${x-larguraMarca/2}" y="${y-8}" width="${larguraMarca}" height="16" rx="4"/>
         <text class="conector-marca-pequena ${s.tipo}" x="${x}" y="${y+3}" text-anchor="middle">${esc(marca)}</text>`;
       if(texto){
@@ -986,7 +1017,7 @@ document.getElementById("campoNomeAtor").addEventListener("input",e=>{
   const no=d.no.find(n=>n.id===ids[0]);
   if(!no||no.tipo!=="ator") return;
   no.texto=e.target.value;
-  salvarLocal(); render();
+  salvarLocal("ator:"+no.id); render();
 });
 
 /* ---------- Interação: cliques ---------- */
@@ -1140,8 +1171,11 @@ function adicionarSeta(de,para,ancoraDe,ancoraPara){
   d.seta.push(seta);
   estado.origemConexao=null;
   estado.ancoraOrigem=null;
-  salvarLocal(); render();
-  toast("Seta criada ✓","sucesso");
+  const condicao=saidaDecisao(d,seta);
+  if(condicao){estado.selecionados.clear();estado.setaSelecionada=seta.id;}
+  render(); salvarLocal();
+  if(condicao) campoCondicao.focus();
+  else toast("Seta criada ✓","sucesso");
 }
 function excluirSelecionados(){
   const d=diagramaAtual();
@@ -1168,7 +1202,7 @@ function adicionarBloco(tipo,x,y){
   d.no.push(no);
   estado.selecionados.clear(); estado.selecionados.add(no.id);
   estado.setaSelecionada=null;
-  render();
+  render(); salvarLocal();
   return no;
 }
 
@@ -1289,7 +1323,7 @@ document.getElementById("ferrLimpar").addEventListener("click",()=>{
 });
 document.getElementById("tituloDiagrama").addEventListener("input",e=>{
   const d=diagramaAtual(); if(!d) return;
-  d.nome=e.target.value; salvarLocal();
+  d.nome=e.target.value; salvarLocal("titulo");
 });
 document.getElementById("zoomIn").addEventListener("click",()=>{ estado.zoom=Math.min(3,estado.zoom*1.2); aplicarZoomVisual(); });
 document.getElementById("zoomOut").addEventListener("click",()=>{ estado.zoom=Math.max(0.3,estado.zoom/1.2); aplicarZoomVisual(); });
@@ -1463,6 +1497,88 @@ document.getElementById("arquivoJSON").addEventListener("change",e=>{
 /* =========================================================================
    Inicialização
    ========================================================================= */
+// Histórico da sessão de edição atual. Cada salvamento registra o desenho uma vez.
+let historico=null, copiaDiagrama=null;
+function iniciarHistorico(d){
+  historico={id:d.id,atual:JSON.stringify(d),antes:[],depois:[],grupo:null};
+}
+function registrarEdicao(grupo){
+  const d=diagramaAtual();
+  if(!d || d.id!==historico?.id) return;
+  const atual=JSON.stringify(d);
+  if(historico.atual===atual) return;
+  if(!grupo || grupo!==historico.grupo){
+    historico.antes.push(historico.atual);
+    if(historico.antes.length>80) historico.antes.shift();
+  }
+  historico.atual=atual; historico.grupo=grupo; historico.depois.length=0;
+}
+function restaurarEdicao(refazer){
+  const h=historico,d=diagramaAtual();
+  if(!d || h?.id!==d.id) return;
+  const origem=refazer?h.depois:h.antes, destino=refazer?h.antes:h.depois;
+  if(!origem.length) return;
+  destino.push(h.atual); h.atual=origem.pop(); h.grupo=null;
+  Object.assign(d,JSON.parse(h.atual));
+  estado.selecionados.clear(); estado.setaSelecionada=null;
+  estado.origemConexao=null; estado.ancoraOrigem=null;
+  document.getElementById("tituloDiagrama").value=d.nome;
+  salvarLocal(); render();
+}
+function copiarSelecao(d){
+  const ids=new Set(estado.selecionados);
+  const linha=setaAtual();
+  if(!ids.size && linha){ids.add(linha.de); ids.add(linha.para);}
+  if(!ids.size) return null;
+  const setas=linha && !estado.selecionados.size ? [linha] : d.seta.filter(s=>ids.has(s.de)&&ids.has(s.para));
+  return structuredClone({tipo:d.tipo,no:d.no.filter(n=>ids.has(n.id)),seta:setas,colagens:0});
+}
+function colarSelecao(d,copia){
+  if(!copia) return;
+  if(d.tipo!==copia.tipo){toast("Cole em um diagrama do mesmo tipo.","erro");return;}
+  const ids=new Map(),deslocamento=24*(++copia.colagens);
+  const {no,seta}=structuredClone(copia);
+  for(const n of no){
+    const id=novoId(); ids.set(n.id,id);
+    n.id=id; n.x+=deslocamento; n.y+=deslocamento; d.no.push(n);
+  }
+  for(const s of seta){
+    s.id=novoId(); s.de=ids.get(s.de); s.para=ids.get(s.para);
+    for(const p of s.dobras||[]){p.x+=deslocamento;p.y+=deslocamento;}
+    d.seta.push(s);
+  }
+  estado.selecionados=new Set(ids.values()); estado.setaSelecionada=null;
+  estado.origemConexao=null; estado.ancoraOrigem=null;
+  render(); salvarLocal();
+}
+function atalhoEditor(ev){
+  const d=diagramaAtual();
+  if(!d || ev.defaultPrevented || ev.isComposing || ev.altKey || ev.target.isContentEditable ||
+     ev.target.closest?.("input,textarea,select,dialog")) return;
+  const tecla=ev.key.toLowerCase();
+  if(ev.ctrlKey || ev.metaKey){
+    if(!["a","c","v","d","z","y"].includes(tecla) || (ev.shiftKey && tecla!=="z")) return;
+    ev.preventDefault();
+    if(gestoLinha || arrastagem || ev.repeat) return;
+    switch(tecla){
+      case "a":
+        estado.selecionados=new Set(d.no.map(n=>n.id)); estado.setaSelecionada=null; render();break;
+      case "c":{
+        const selecao=copiarSelecao(d);
+        if(selecao){copiaDiagrama=selecao;toast("Seleção copiada.","sucesso");}
+        break;
+      }
+      case "v": colarSelecao(d,copiaDiagrama);break;
+      case "d": colarSelecao(d,copiarSelecao(d));break;
+      case "z": restaurarEdicao(ev.shiftKey);break;
+      case "y": restaurarEdicao(true);break;
+    }
+  }else if(tecla==="delete" || tecla==="backspace"){
+    if(estado.selecionados.size||estado.setaSelecionada){ev.preventDefault();excluirSelecionados();}
+  }else if(tecla==="t") definirFerramenta("selecionar");
+  else if(tecla==="c") definirFerramenta("conectar");
+}
+
 function init(){
   carregarLocal();
   temaAplicar(temaInicial());
@@ -1473,13 +1589,10 @@ function init(){
       posicionarInline();
     }
   }).observe(document.getElementById("canvasWrap"));
-  window.addEventListener("keydown",ev=>{
-    if(!diagramaAtual() || ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    if(ev.target.tagName==="INPUT"||ev.target.tagName==="TEXTAREA"||ev.target.tagName==="SELECT") return;
-    if(ev.key==="Delete"||ev.key==="Backspace"){
-      if(estado.selecionados.size||estado.setaSelecionada){ ev.preventDefault(); excluirSelecionados(); }
-    }else if(ev.key==="t"||ev.key==="T") definirFerramenta("selecionar");
-    else if(ev.key==="c"||ev.key==="C") definirFerramenta("conectar");
-  });
+  window.addEventListener("keydown",atalhoEditor);
+  document.addEventListener("focusout",()=>{if(historico) historico.grupo=null;});
+  svg.addEventListener("pointerdown",()=>{
+    if(document.activeElement?.matches("#campoCondicao,#campoNomeAtor,#tituloDiagrama,#tipoLinha,#grupoConexoes")) svg.focus({preventScroll:true});
+  },true);
 }
 init();
