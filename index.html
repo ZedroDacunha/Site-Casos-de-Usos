@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="43">
+<html lang="pt-BR" data-theme="light" data-version="44">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Editor de Diagramas — Modelagem Visual</title>
 <meta name="description" content="Editor de diagramas: tela inicial com seus diagramas e ferramentas para montar manualmente seus diagramas de casos de uso, atividades e roteiro.">
-<link rel="stylesheet" href="style.css?v=43">
+<link rel="stylesheet" href="style.css?v=44">
 </head>
 <body>
 
@@ -74,7 +74,7 @@
       </div>
       <div class="colecao" id="colecaoProjetos" role="tabpanel" aria-labelledby="abaProjetos" tabindex="0" hidden>
         <div class="colecao-cabeca">
-          <p class="descricao-projetos">Organize os diagramas na ordem do seu PDF.</p>
+          <p class="descricao-projetos">Documente os requisitos e organize os diagramas do seu PDF.</p>
           <button class="btn btn-primario" id="novoProjeto" type="button">Criar projeto</button>
         </div>
         <div class="lista-diagramas" id="listaProjetos"></div>
@@ -197,6 +197,21 @@
     <div class="modal-corpo">
       <label for="nomeProjeto">Nome do projeto</label>
       <input id="nomeProjeto" maxlength="100" required placeholder="Ex.: Sistema de biblioteca">
+      <details class="secao-requisitos" id="secaoRequisitos">
+        <summary>Levantamento de requisitos</summary>
+        <section aria-labelledby="tituloRF">
+          <h4 id="tituloRF">Requisitos funcionais</h4>
+          <p>O que o sistema deve fazer.</p>
+          <ol id="listaRF"></ol>
+          <button type="button" class="fbtn" data-adicionar-requisito="RF">Adicionar RF</button>
+        </section>
+        <section aria-labelledby="tituloRNF">
+          <h4 id="tituloRNF">Requisitos não funcionais</h4>
+          <p>Critérios de qualidade, como desempenho e acessibilidade.</p>
+          <ol id="listaRNF"></ol>
+          <button type="button" class="fbtn" data-adicionar-requisito="RNF">Adicionar RNF</button>
+        </section>
+      </details>
       <label for="adicionarAoProjeto">Adicionar diagrama</label>
       <div class="incluir-diagrama">
         <select id="adicionarAoProjeto"></select>
@@ -230,7 +245,7 @@
 </dialog>
 <div role="status" class="toast" id="toast"></div>
 
-<script src="projetos.js?v=43"></script>
+<script src="projetos.js?v=44"></script>
 <script src="script.js?v=43"></script>
 </body>
 </html>
