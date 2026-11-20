@@ -870,6 +870,66 @@ function tracadoLinha(p1,p2,dobras){
 }
 
 const ancorasRender=new Map();
+const organizarBlocos=document.getElementById("organizarBlocos");
+const distribuirBlocos=document.getElementById("distribuirBlocos");
+
+function organizarSelecao(d,eixo,modo){
+  // As âncoras medem o contorno que aparece no canvas, inclusive nos blocos redimensionados.
+  const horizontal=eixo==="x";
+  const medidas=[];
+  for(const no of d.no){
+    if(!estado.selecionados.has(no.id)) continue;
+    const a=ancorasRender.get(no.id);
+    if(!a) return;
+    const inicio=horizontal?a.esquerda.x:a.topo.y;
+    const fim=horizontal?a.direita.x:a.inferior.y;
+    medidas.push({no,inicio,fim});
+  }
+  const distribuir=modo==="espaco";
+  if(medidas.length<(distribuir?3:2)) return;
+  const inicioGrupo=medidas.reduce((min,m)=>Math.min(min,m.inicio),Infinity);
+  const fimGrupo=medidas.reduce((max,m)=>Math.max(max,m.fim),-Infinity);
+  const movimentos=new Map();
+  if(distribuir){
+    medidas.sort((a,b)=>a.inicio-b.inicio);
+    const ocupado=medidas.reduce((soma,m)=>soma+m.fim-m.inicio,0);
+    // Se não houver espaço, expande a partir da primeira caixa para evitar sobreposição.
+    const espacoLivre=fimGrupo-inicioGrupo-ocupado;
+    const intervalo=espacoLivre>0?espacoLivre/(medidas.length-1):24;
+    let cursor=inicioGrupo;
+    for(const m of medidas){
+      movimentos.set(m.no.id,cursor-m.inicio);
+      cursor+=m.fim-m.inicio+intervalo;
+    }
+  }else{
+    for(const m of medidas){
+      let delta;
+      if(modo==="inicio") delta=inicioGrupo-m.inicio;
+      else if(modo==="fim") delta=fimGrupo-m.fim;
+      else delta=(inicioGrupo+fimGrupo-m.inicio-m.fim)/2;
+      movimentos.set(m.no.id,delta);
+    }
+  }
+  if(!medidas.some(m=>Math.abs(movimentos.get(m.no.id))>0.000001)) return;
+  for(const {no} of medidas) no[eixo]+=movimentos.get(no.id);
+
+  // Em uma curva interna à seleção, as dobras acompanham gradualmente os dois extremos.
+  for(const seta of d.seta){
+    if(!seta.dobras?.length || !movimentos.has(seta.de) || !movimentos.has(seta.para)) continue;
+    const de=movimentos.get(seta.de), para=movimentos.get(seta.para);
+    seta.dobras.forEach((p,i)=>{p[eixo]+=de+(para-de)*(i+1)/(seta.dobras.length+1);});
+  }
+  salvarLocal();
+  render();
+}
+
+organizarBlocos.addEventListener("change",()=>{
+  const [eixo,modo]=organizarBlocos.value.split("-");
+  organizarBlocos.value="";
+  const d=diagramaAtual();
+  if(d && estado.ferramenta==="selecionar") organizarSelecao(d,eixo,modo);
+  svg.focus({preventScroll:true});
+});
 const alcasLinha=document.getElementById("alcasLinha");
 const tipoLinha=document.getElementById("tipoLinha");
 let gestoLinha=null;
@@ -1170,6 +1230,8 @@ function render(d=diagramaAtual(),paraPDF=false){
   const info=document.getElementById("infoSelecionado");
   const quantidade=estado.selecionados.size;
   document.getElementById("acoesSelecao").hidden=!quantidade && !estado.setaSelecionada;
+  organizarBlocos.hidden=quantidade<2 || estado.ferramenta!=="selecionar";
+  distribuirBlocos.disabled=quantidade<3;
   document.getElementById("btnEditarTexto").hidden=quantidade>1;
   info.textContent=estado.setaSelecionada ? "Seta selecionada" :
     quantidade===1 ? "Bloco selecionado" : quantidade+" blocos selecionados";
