@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="46">
+<html lang="pt-BR" data-theme="light" data-version="47">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -95,6 +95,7 @@
         <summary>Como usar o editor</summary>
         <p>Clique em um bloco para inseri-lo no centro ou arraste-o até a posição desejada.</p>
         <p>Use <kbd>T</kbd> para selecionar e mover. Segure Shift para selecionar vários blocos. Um duplo clique abre o texto do bloco.</p>
+        <p>Ao arrastar, aproxime as bordas ou os centros dos blocos para encaixar nas guias roxas. Marcas nos intervalos indicam espaços iguais. Segure Ctrl (⌘ no Mac) para mover livremente.</p>
         <p>Com dois ou mais blocos selecionados, use <strong>Alinhar e distribuir</strong> na barra de seleção. Com três ou mais, você também pode igualar o espaço entre eles na horizontal ou na vertical.</p>
         <p>Arraste o quadrado no canto inferior direito do bloco para mudar seu tamanho. Para os pontos de início e fim, você também pode digitar o diâmetro. Ao editar o texto, Shift+Enter insere uma quebra de linha.</p>
         <p>Selecione uma seta e arraste as pontas para reconectar ou os pontos do meio para curvar.</p>
@@ -142,6 +143,7 @@
           <g id="camadaRotulos"></g>
           <g id="camadaNos"></g>
           <g id="alcasLinha"></g>
+          <g id="guiasArraste" aria-hidden="true" pointer-events="none" stroke="#b042c5" stroke-width="1.5"></g>
         </svg>
         <div class="dica-canvas" id="dicaCanvas">Escolha um bloco na paleta para começar.</div>
       </div>
@@ -263,6 +265,7 @@
 
 <script src="relatorio-pdf.js?v=45"></script>
 <script src="projetos.js?v=45"></script>
-<script src="script.js?v=46"></script>
+<script src="guias.js?v=47"></script>
+<script src="script.js?v=47"></script>
 </body>
 </html>
