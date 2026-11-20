@@ -1569,6 +1569,7 @@ svg.addEventListener("pointerdown",ev=>{
   svg.addEventListener("pointercancel",fim);
   svg.addEventListener("lostpointercapture",fim);
 });
+const guiasArraste=document.getElementById("guiasArraste");
 let arrastagem=null;
 // true quando o usuário realmente arrastou (movimento acima do limite) — usado para
 // ignorar o clique que o browser dispara após o arrasto, em qualquer ferramenta
@@ -1576,6 +1577,7 @@ let arrastoReal=false;
 // edição inline do texto do bloco (campo HTML posicionado sobre a caixa)
 let inlineEdit=null;
 svg.addEventListener("pointerdown",ev=>{
+  if(!ev.isPrimary || ev.button!==0 || arrastagem) return;
   const grp=ev.target.closest(".no-grp");
   if(!grp) return;
   ev.preventDefault(); // evita seleção de texto / arrasto nativo do browser
@@ -1587,55 +1589,66 @@ svg.addEventListener("pointerdown",ev=>{
   // grupo do bloco, então a conexão nunca é criada. O clique precisa chegar ao
   // grupo normalmente para acionar clickNo (origem -> destino -> seta).
   if(estado.ferramenta==="conectar") return;
-  // arrasto funciona em qualquer ferramenta (selecionar, conectar, seta, texto)
-  // NÃO seleciona e NÃO captura o ponteiro aqui no pointerdown: a seleção e a
-  // captura acontecem só quando o movimento de arrasto realmente começa (primeiro
-  // pointermove que ultrapassa o limite). Se capturar no pointerdown, o click e o
-  // dblclick são redirecionados para o svg (elemento capturante) e nunca chegam ao
-  // grupo — o clique simples/duplo deixaria de selecionar (só selecionaria ao
-  // arrastar). O click precisa chegar ao grupo normalmente.
-  const p0=posMundo(ev.clientX,ev.clientY);
-  arrastagem={p0,originais:new Map(),capturado:false,grp,no};
+  arrastagem={id:ev.pointerId,no,p0:posMundo(ev.clientX,ev.clientY),capturado:false};
   arrastoReal=false;
 });
-svg.addEventListener("pointermove",ev=>{
-  if(!arrastagem) return;
-  const p=posMundo(ev.clientX,ev.clientY);
-  const dx=p.x-arrastagem.p0.x, dy=p.y-arrastagem.p0.y;
-  // limite mínimo de movimento para considerar um arrasto real (e não um clique)
-  if(Math.abs(dx)>3||Math.abs(dy)>3){
-    // primeiro movimento real de arrasto: aí seleciona (se ainda não estiver) e
-    // captura o ponteiro — a captura só é necessária para o arrasto e só aí, para
-    // o clique simples/duplo (sem arrasto) chegar normalmente ao grupo
-    if(!arrastagem.capturado){
-      arrastagem.capturado=true;
-      arrastoReal=true;
-      const {grp,no}=arrastagem;
-      if(!estado.selecionados.has(no.id)){
-        if(!ev.shiftKey){
-          estado.selecionados.clear(); estado.setaSelecionada=null;
-        }
-        estado.selecionados.add(no.id);
-      }
-      // reconstrói as origens com a seleção atual (inclui o nó que será arrastado)
-      for(const n of diagramaAtual().no.filter(n=>estado.selecionados.has(n.id))){
-        arrastagem.originais.set(n.id,{x:n.x,y:n.y});
-      }
-      try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
-    }
-  }
-  for(const [id,o] of arrastagem.originais){
-    const n=diagramaAtual().no.find(x=>x.id===id);
-    if(n){ n.x=Math.round(o.x+dx); n.y=Math.round(o.y+dy); }
-  }
+function posicionarArraste(g,livre){
+  const {dx,dy}=aplicarGuias(g.guias,g.dx,g.dy,estado.zoom,livre,guiasArraste);
+  for(const {no,x,y} of g.originais){no.x=x+dx;no.y=y+dy;}
+  for(const {p,x,y} of g.dobras){p.x=x+dx;p.y=y+dy;}
   render();
+}
+svg.addEventListener("pointermove",ev=>{
+  const g=arrastagem;
+  if(!g || ev.pointerId!==g.id) return;
+  const p=posMundo(ev.clientX,ev.clientY);
+  g.dx=p.x-g.p0.x; g.dy=p.y-g.p0.y;
+  if(!g.capturado){
+    if(Math.hypot(g.dx,g.dy)*estado.zoom<3) return;
+    const d=diagramaAtual();
+    if(!estado.selecionados.has(g.no.id)){
+      if(!ev.shiftKey) estado.selecionados.clear();
+      estado.selecionados.add(g.no.id);
+    }
+    estado.setaSelecionada=null;
+    g.originais=d.no.filter(n=>estado.selecionados.has(n.id)).map(no=>({no,x:no.x,y:no.y}));
+    g.dobras=[];
+    for(const s of d.seta){
+      if(estado.selecionados.has(s.de) && estado.selecionados.has(s.para)){
+        for(const p of s.dobras||[]) g.dobras.push({p,x:p.x,y:p.y});
+      }
+    }
+    g.guias=capturarGuias(ancorasRender,estado.selecionados,svg.viewBox.baseVal);
+    g.capturado=true; arrastoReal=true;
+    try{svg.setPointerCapture(ev.pointerId);}catch{}
+  }
+  posicionarArraste(g,ev.ctrlKey||ev.metaKey);
 });
-const fimArrasto=()=>{ if(arrastagem){ arrastagem=null; salvarLocal(); } };
+function alternarEncaixe(ev){
+  if(arrastagem?.capturado && !ev.repeat && (ev.key==="Control" || ev.key==="Meta")){
+    posicionarArraste(arrastagem,ev.ctrlKey||ev.metaKey);
+  }
+}
+document.addEventListener("keydown",alternarEncaixe);
+document.addEventListener("keyup",alternarEncaixe);
+function fimArrasto(ev){
+  const g=arrastagem;
+  if(!g || (ev.pointerId!==undefined && ev.pointerId!==g.id)) return;
+  arrastagem=null;
+  guiasArraste.replaceChildren();
+  if(!g.capturado) return;
+  if(ev.type==="pointerup") salvarLocal();
+  else{
+    for(const {no,x,y} of g.originais){no.x=x;no.y=y;}
+    for(const {p,x,y} of g.dobras){p.x=x;p.y=y;}
+    arrastoReal=false; render();
+  }
+}
 svg.addEventListener("pointerup",fimArrasto);
-svg.addEventListener("pointercancel",fimArrasto);
-// fecha o arrasto também se o ponteiro for solto fora do canvas
 document.addEventListener("pointerup",fimArrasto);
 document.addEventListener("pointercancel",fimArrasto);
+svg.addEventListener("lostpointercapture",ev=>{if(ev.target===svg) fimArrasto(ev);});
+window.addEventListener("blur",fimArrasto);
 svg.addEventListener("click",ev=>{
   if(arrastoReal){ arrastoReal=false; return; } // foi um arrasto, não um clique
   if(ev.target===camadaNos || ev.target.closest(".no-grp,.seta-grp")) return;
@@ -1752,6 +1765,7 @@ function construirSVGExport(formato,d=diagramaAtual()){
   clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
   clone.querySelector("#gradePlano")?.remove();
   clone.querySelector("#alcasLinha")?.remove();
+  clone.querySelector("#guiasArraste")?.remove();
   const contNos=clone.querySelector("#camadaNos");
   if(contNos) contNos.querySelectorAll(".ancora,.hit-no,.alca-tamanho").forEach(n=>n.remove());
   const contSetas=clone.querySelector("#camadaConexoes");
