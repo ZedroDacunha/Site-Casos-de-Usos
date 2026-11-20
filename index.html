@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light" data-version="45">
+<html lang="pt-BR" data-theme="light" data-version="46">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -95,6 +95,7 @@
         <summary>Como usar o editor</summary>
         <p>Clique em um bloco para inseri-lo no centro ou arraste-o até a posição desejada.</p>
         <p>Use <kbd>T</kbd> para selecionar e mover. Segure Shift para selecionar vários blocos. Um duplo clique abre o texto do bloco.</p>
+        <p>Com dois ou mais blocos selecionados, use <strong>Alinhar e distribuir</strong> na barra de seleção. Com três ou mais, você também pode igualar o espaço entre eles na horizontal ou na vertical.</p>
         <p>Arraste o quadrado no canto inferior direito do bloco para mudar seu tamanho. Para os pontos de início e fim, você também pode digitar o diâmetro. Ao editar o texto, Shift+Enter insere uma quebra de linha.</p>
         <p>Selecione uma seta e arraste as pontas para reconectar ou os pontos do meio para curvar.</p>
         <p>Ctrl+C copia a seleção, Ctrl+V cola e Ctrl+D duplica. Ctrl+A seleciona todos os blocos. Uma seta copiada sozinha inclui os dois blocos ligados a ela.</p>
@@ -146,6 +147,21 @@
       </div>
       <div class="selecao" id="acoesSelecao" role="group" aria-label="Seleção" hidden>
         <span id="infoSelecionado"></span>
+        <select class="fbtn" id="organizarBlocos" aria-label="Alinhar e distribuir blocos" hidden>
+          <option value="" selected disabled>Alinhar e distribuir…</option>
+          <optgroup label="Alinhar pela seleção">
+            <option value="x-inicio">Alinhar à esquerda</option>
+            <option value="x-centro">Centralizar na mesma coluna</option>
+            <option value="x-fim">Alinhar à direita</option>
+            <option value="y-inicio">Alinhar pelo topo</option>
+            <option value="y-centro">Centralizar na mesma linha</option>
+            <option value="y-fim">Alinhar pela base</option>
+          </optgroup>
+          <optgroup id="distribuirBlocos" label="Distribuir espaço (3 ou mais blocos)">
+            <option value="x-espaco">Igualar espaço horizontal</option>
+            <option value="y-espaco">Igualar espaço vertical</option>
+          </optgroup>
+        </select>
         <div class="grupo-nome-ator" id="grupoNomeAtor" style="display:none">
           <label for="campoNomeAtor">Nome do ator</label>
           <input id="campoNomeAtor" type="text" maxlength="80" placeholder="Ex.: Cliente">
@@ -247,6 +263,6 @@
 
 <script src="relatorio-pdf.js?v=45"></script>
 <script src="projetos.js?v=45"></script>
-<script src="script.js?v=43"></script>
+<script src="script.js?v=46"></script>
 </body>
 </html>
